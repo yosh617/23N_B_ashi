@@ -7,6 +7,10 @@ const int MD[4]={0x26,0x54,0x56,0x50};
 int WOOD=100;
 // 全体スピード
 int speed=20;
+// 最大速度
+int max_speed=0xf0;
+// 最低速度
+int min_speed=0x10;
 // 個体値補正
 int hosei[4]={0};
 // 最終的なduty
@@ -36,19 +40,32 @@ DigitalOut ue_power(PC_8);
 // 赤外線センサーズ
 AnalogIn    sensorF(PA_6); // 前
 AnalogIn    sensorB(PA_7); // 後
-// 値保存
-double dis[2]={};
+// 生の値
 float value[2];
+// 計算後の値
+double dis[2]={};
 // ちじき        SDA SCL
 BNO055 CHIJIKI(PB_3,PB_10);
 // 地磁気の値 -180~0~180
-float CHIJIKI_;
+float CHIJIKI_=0;
+// 前回の地磁気の値
+float old_CHIJIKI=0;
+// 生のデータ   0~360
+float raw_CHIJIKI_=0;
+// 生のデータ   0~360
+float raw_old_CHIJIKI=0;
+// 許される瞬間の地磁気の変化量
+float max_warp=75;
+// 地磁気の飛び (x90)
+int warp=0;
 // 目標値
 int goal=0;
 // モーター動かす
 void sender(char add,char dat);
 // センサー読む
 void sensor_reader(void);
+// 角度の差を計算する
+float compute_dig(float d1,float d2);
 // 確認用関数
 void debugger(void);
 // 動き         direction fbrls
@@ -151,6 +168,8 @@ int main(){
 void sender(char add,char dat){
     motor.start();
     motor.write(add);
+    if(dat<min_speed)dat=min_speed;
+    else if(max_speed<dat)dat=max_speed;
     motor.write(dat);
     motor.stop();
     wait_us(100);
@@ -215,14 +234,29 @@ void This_is_function_for_hosei(){
     }
 }
 
+float compute_dig(float d1,float d2){
+
+}
+
 void sensor_reader(){
+    // 赤外線センサーを読む
     value[0] = sensorF.read();
     value[1] = sensorB.read();
+
+    //それをもとに計算する
     dis[0] = 71.463 * pow(value[0],-1.084);
     dis[1] = 71.463 * pow(value[1],-1.084);
-    CHIJIKI.setmode(OPERATION_MODE_NDOF);
+
+    // 地磁気の相対角（初期位置からの）を取得
+    CHIJIKI.setmode(OPERATION_MODE_NDOF);   //魔法
     CHIJIKI.get_angles();
-    CHIJIKI_=CHIJIKI.euler.yaw;
-    if(180<CHIJIKI_ && CHIJIKI_<360)CHIJIKI_=180-CHIJIKI_;
+    old_CHIJIKI=CHIJIKI_;   //入れ替え
+    if(old_CHIJIKI<0)raw_old_CHIJIKI=180-old_CHIJIKI;   //元の形に戻す 0~360
+    else raw_old_CHIJIKI=old_CHIJIKI;
+    raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
+    if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=180-raw_CHIJIKI_;  //-180~180に変換
+    else CHIJIKI_=raw_CHIJIKI_;
+
+    //飛びすぎてたら...
 }
 

@@ -204,13 +204,13 @@ void This_is_function_for_hosei(){
     float now = goal-CHIJIKI_;
     if(0<now){  //左向き過ぎてる
         chijiki_hosei[0]=0;
-        chijiki_hosei[1]=goal*p;
+        chijiki_hosei[1]=abs(now*p);
         chijiki_hosei[2]=0;
-        chijiki_hosei[3]=goal*p;
+        chijiki_hosei[3]=abs(now*p);
     }else{      //右向きすぎてる
-        chijiki_hosei[0]=goal*p;
+        chijiki_hosei[0]=abs(now*p);
         chijiki_hosei[1]=0;
-        chijiki_hosei[2]=goal*p;
+        chijiki_hosei[2]=abs(now*p);
         chijiki_hosei[3]=0;        
     }
 }

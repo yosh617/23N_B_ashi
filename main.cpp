@@ -1,5 +1,6 @@
 #include "mbed.h"
 #include "BNO055.h"
+#include <chrono>
 
 // MDアドレス   右前,左前,右後,左後
 const int MD[4]={0x26,0x54,0x56,0x50};
@@ -58,6 +59,8 @@ float raw_old_CHIJIKI=0;
 float max_warp=75;
 // 地磁気の飛び (x90)
 int warp=0;
+// 地磁気のすごいやつ！
+double yaw_Q=0;
 // 目標値
 int goal=0;
 // モーター動かす
@@ -235,7 +238,14 @@ void This_is_function_for_hosei(){
 }
 
 float compute_dig(float d1,float d2){
-
+    float d=d1-d2;
+    while(d<-180){
+        d+=360;
+    }
+    while(d>180){
+        d-=360;
+    }
+    return abs(d);
 }
 
 void sensor_reader(){
@@ -256,7 +266,23 @@ void sensor_reader(){
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
     if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=180-raw_CHIJIKI_;  //-180~180に変換
     else CHIJIKI_=raw_CHIJIKI_;
-
+    CHIJIKI.getEulerFromQ(yaw_Q);
     //飛びすぎてたら...
+    if(compute_dig(raw_old_CHIJIKI, raw_CHIJIKI_)>max_warp){
+        
+    }
 }
 
+void debugger(){
+    printf("--------------------\n");
+    printf("sig             :   %d\n",sig.read());
+    printf("CHIJIKI_        :   %f\n",CHIJIKI_);
+    printf("CHIJIKI_Q       :   %f\n",yaw_Q);
+    printf("distance        :   %f , %f\n",dis[0],dis[1]);
+    printf("speed           :   %d\n",speed);
+    printf("motor           :   MM HM MU HU\n");
+    printf("hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
+    printf("CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
+    printf("final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
+    printf("--------------------\n");
+}

@@ -194,6 +194,21 @@ void BNO055::get_quat(void){
     quat.z = float(quat.rawz)/16384.0f;
 }
 
+void BNO055::getEulerFromQ(double &E_heading){
+    tx[0] = BNO055_QUATERNION_DATA_W_LSB_ADDR;
+    _i2c.write(address,tx,1,true);  
+    _i2c.read(address+1,rawdata,8,0); 
+    double q1,q2,q3,q4;
+    q1 = (double)((short)((rawdata[1] << 8 ) | rawdata[0]) / 16384.0);
+    q2 = (double)((short)((rawdata[3] << 8 ) | rawdata[2]) / 16384.0);
+    q3 = (double)((short)((rawdata[5] << 8 ) | rawdata[4]) / 16384.0);
+    q4 = (double)((short)((rawdata[7] << 8 ) | rawdata[6]) / 16384.0);
+    double q3q3=q3*q3;
+    double m1 = +2.0 * (q1 * q4 + q2 * q3);
+    double m2 = + 1.0 - 2.0 * (q3q3 + q4 * q4);
+    E_heading=atan2(m1,m2) * 57.2957795131;
+}
+
 void BNO055::get_angles(void){
     tx[0] = BNO055_EULER_H_LSB_ADDR;
     _i2c.write(address,tx,1,true);  

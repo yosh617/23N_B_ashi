@@ -219,6 +219,8 @@ and serial number of chip and store in ID structure **/
     void get_grv(void);
 /** Get the output quaternion **/
     void get_quat(void);
+/** Get the current Euler angles(yaw) by using quat**/
+    void getEulerFromQ(double &E_heading);
 /** Get the current Euler angles **/
     void get_angles(void);
 /** Get the current temperature **/

@@ -64,6 +64,7 @@ int main(){
     state=1;
     printf("loop start!\n");
     while(true){
+        sensor_reader();
         if(pc.read(&buffer,1)>0){   // PCから受信したら
             if(buffer=='\n'){       // 改行だったら
                 cmd[index]='\0';    // \0 : 文字列の最後の意味
@@ -213,17 +214,19 @@ void send(char d){
 }
 
 void This_is_function_for_hosei(){
-    sensor_reader();
+    // sensor_reader();
     float now = goal-CHIJIKI_;
+    float h=now*p;
+    if(h<0)h*=-1;
     if(0<now){  //左向き過ぎてる
         chijiki_hosei[0]=0;
-        chijiki_hosei[1]=abs(now*p);
+        chijiki_hosei[1]=h;
         chijiki_hosei[2]=0;
-        chijiki_hosei[3]=abs(now*p);
+        chijiki_hosei[3]=h;
     }else{      //右向きすぎてる
-        chijiki_hosei[0]=abs(now*p);
+        chijiki_hosei[0]=h;
         chijiki_hosei[1]=0;
-        chijiki_hosei[2]=abs(now*p);
+        chijiki_hosei[2]=h;
         chijiki_hosei[3]=0;        
     }
 }
@@ -244,7 +247,7 @@ void sensor_reader(){
     value[0] = sensorF.read();
     value[1] = sensorB.read();
 
-    //それをもとに計算する
+    // それをもとに計算する
     dis[0] = 71.463 * pow(value[0],-1.084);
     dis[1] = 71.463 * pow(value[1],-1.084);
 
@@ -258,7 +261,7 @@ void sensor_reader(){
     if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=180-raw_CHIJIKI_;  //-180~180に変換
     else CHIJIKI_=raw_CHIJIKI_;
     CHIJIKI.getEulerFromQ(yaw_Q);
-    //飛びすぎてたら...
+    // 飛びすぎてたら...
     if(compute_dig(raw_old_CHIJIKI, raw_CHIJIKI_)>max_warp){
         
     }

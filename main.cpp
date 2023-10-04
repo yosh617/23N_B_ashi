@@ -10,7 +10,7 @@ int hosei[4]={0};                          // 個体値補正
 int duty[4]={0};                           // 最終的なduty
 const char BRK = 0x80;                     // ブレーキ
 int senkai_speed=16;                       // 旋回速度
-int state=0;                               //0:準備中   1:main
+int state=0;                               // 0:準備中   1:main  2:auto_run
 int F(int s,int i);                        // 前進計算
 int B(int s,int i);                        // 後退計算
 BufferedSerial pc(USBTX,USBRX);            // PCとのシリアル
@@ -39,6 +39,7 @@ double yaw_Q=0;                          // 地磁気のすごいやつ！
 int goal=0;                              // 目標値
 void sender(char add,char dat);          // モーター動かす
 void sensor_reader(void);                // センサー読む
+void auto_run(void);                     // 角材
 float compute_dig(float d1,float d2);    // 角度の差を計算する
 void debugger(void);                     // 確認用関数
 void send(char d);                       // 動き         direction fbrls
@@ -140,6 +141,9 @@ int main(){
                             break;
                         }
                         break;
+                    case 'k':
+                        state=2;
+                        break;
                     }
                 }
                 char cmd[128]="";
@@ -148,6 +152,9 @@ int main(){
                 cmd[index]=buffer;
                 index++;
             }
+        }
+        if(state==2){
+            auto_run();
         }
     }
 }
@@ -298,4 +305,51 @@ void debugger(){
     printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
     printf("| final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
     printf("+------------------------------------\n");
+}
+
+void auto_run(void){
+    if(state==2){
+        int flag = 0;
+        bool finish = false;
+        // ここでもgetdataがちゃんとattachしてるかチェック
+        //printf("%d\n",batu);
+
+        sensor_reader();
+        debugger();
+        if(dis[0] <= WOOD && flag == 0){
+            airF.write(1); // 前あげ
+            flag=1;
+        }
+        else if(dis[1] <= WOOD && flag == 1){
+            airF.write(0);
+            ThisThread::sleep_for(100ms);
+            airB.write(1);
+            char buffer;
+            int index;
+            char cmd[128];
+            for(int i = 0; i < 10; i++){
+                if(pc.read(&buffer,1)>0){
+                    if(buffer=='\n'){       // 改行だったら
+                        cmd[index]='\0';
+                        if(cmd=="k" || cmd=="p"){
+                            state=1;
+                            finish=true;
+                            break;
+                        }
+                        char cmd[128]="";
+                        index=0;
+                    }else{
+                        cmd[index]=buffer;
+                        index++;
+                    }
+                }
+                ThisThread::sleep_for(100ms);
+            }
+        }
+        airB.write(0);
+        if(finish){
+            finish = false;
+            flag = 0;
+        }
+    }
 }

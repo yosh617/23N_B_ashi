@@ -86,8 +86,8 @@ int main(){
                     case 'p':
                         send('s');
                         sig.write(1);
-                        ue_power.write(0);
                         airUE.write(1);
+                        ue_power.write(0);
                         printf("pause!\n");
                         break;
                     case 'c':

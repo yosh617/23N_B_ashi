@@ -324,8 +324,6 @@ void auto_run(void){
         int flag = 0;
         bool finish = false;
     }else if(state==2){
-        // ここでもgetdataがちゃんとattachしてるかチェック
-        //printf("%d\n",batu);
 
         sensor_reader();
         // debugger();

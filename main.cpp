@@ -116,7 +116,7 @@ int main(){
                             }
                             break;
                         default:    // それ以外
-                            printf("%c",cmd[1]);
+                            printf("cmd:%c\n",cmd[1]);
                             send(cmd[1]);   //  a + f,b,r,l,s
                             break;
                         }
@@ -129,6 +129,10 @@ int main(){
                         case 'l':
                             speed=atoi(&cmd[2]);
                             send('L');
+                            break;
+                        case 's':
+                            speed=atoi(&cmd[2]);
+                            send('s');
                             break;
                         }
                         break;
@@ -156,7 +160,7 @@ void sender(char add,char dat){
 }
 
 void send(char d){
-    printf("%c",d);
+    // printf("%c",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){

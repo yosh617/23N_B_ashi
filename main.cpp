@@ -47,8 +47,8 @@ void This_is_function_for_hosei(void);   // 補正
 long double p=1;                         // 補正用 kゲイン
 int chijiki_hosei[4]={0};                // 補正結果
 Ticker This_is_ticker_for_hosei;         // Ticker
-int F(int speed,int i){return BRK+speed+hosei[i]+chijiki_hosei[i];};    // 前進計算
-int B(int speed,int i){return BRK-speed-hosei[i]-chijiki_hosei[i];};    // 後退計算
+int F(int speed,int i){return BRK+speed+hosei[i];};    //+chijiki_hosei[i];};    // 前進計算
+int B(int speed,int i){return BRK-speed-hosei[i];};    //-chijiki_hosei[i];};    // 後退計算
 
 // main関数
 int main(){
@@ -60,7 +60,7 @@ int main(){
     airUE.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
-    This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
+    // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
     char buffer;
     int index;
     char cmd[128];
@@ -82,12 +82,14 @@ int main(){
                         debugger();
                         break;
                     case 'p':
+                        send('s');
                         sig.write(1);
                         ue_power.write(0);
                         airUE.write(1);
                         printf("pause!\n");
                         break;
                     case 'c':
+                        send('s');
                         sig.write(0);
                         airUE.write(0);
                         ue_power.write(1);
@@ -95,6 +97,7 @@ int main(){
                         break;
                     case 'a':   // 足回り
                         speed=atoi(&cmd[2]);
+                        printf("a:%c\n",cmd[1]);
                         switch(cmd[1]){
                         case 'a':
                             switch(cmd[2]){
@@ -125,15 +128,16 @@ int main(){
                             send(cmd[1]);   //  a + f,b,r,l,s
                             break;
                         }
+                        break;
                     case 's':   // 旋回
                         switch(cmd[1]){
                         case 'r':
                             speed=atoi(&cmd[2]);
-                            send('R');
+                            send('m');
                             break;
                         case 'l':
                             speed=atoi(&cmd[2]);
-                            send('L');
+                            send('h');
                             break;
                         case 's':
                             speed=atoi(&cmd[2]);
@@ -154,7 +158,10 @@ int main(){
             }
         }
         if(state==2){
+            printf("kakuzai");
             auto_run();
+            speed=20;
+            send('f');
         }
     }
 }
@@ -171,7 +178,7 @@ void sender(char add,char dat){
 }
 
 void send(char d){
-    // printf("%c",d);
+    printf("switch:%c\n",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){
@@ -201,7 +208,7 @@ void send(char d){
             }
         }
         break;
-    case 'R':   // 右旋回
+    case 'm':   // 右旋回
         for(int i=0;i<4;i++){
             if(i==0||i==2){
                 sender(MD[i],B(speed,i)+senkai_speed);
@@ -210,7 +217,7 @@ void send(char d){
             }
         }
         break;
-    case 'L':   // 左旋回
+    case 'h':   // 左旋回
         for(int i=0;i<4;i++){
             if(i==1||i==3){
                 sender(MD[i],B(speed,i)+senkai_speed);
@@ -315,12 +322,14 @@ void auto_run(void){
         //printf("%d\n",batu);
 
         sensor_reader();
-        debugger();
+        // debugger();
         if(dis[0] <= WOOD && flag == 0){
             airF.write(1); // 前あげ
             flag=1;
+            printf("mae!\n");
         }
         else if(dis[1] <= WOOD && flag == 1){
+            printf("gooo!\n");
             airF.write(0);
             ThisThread::sleep_for(100ms);
             airB.write(1);
@@ -334,6 +343,7 @@ void auto_run(void){
                         if(cmd=="k" || cmd=="p"){
                             state=1;
                             finish=true;
+                            send('s');
                             break;
                         }
                         char cmd[128]="";
@@ -345,11 +355,12 @@ void auto_run(void){
                 }
                 ThisThread::sleep_for(100ms);
             }
-        }
-        airB.write(0);
-        if(finish){
-            finish = false;
-            flag = 0;
+            printf("fin\n");
+            airB.write(0);
+            if(finish){
+                finish = false;
+                flag = 0;
+            }
         }
     }
 }

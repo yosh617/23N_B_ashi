@@ -37,6 +37,8 @@ float max_warp=75;                       // 許される瞬間の地磁気の変
 int warp=0;                              // 地磁気の飛び
 double yaw_Q=0;                          // 地磁気のすごいやつ！
 int goal=0;                              // 目標値
+int flag = 0;                            // 角材用フラグ
+bool finish = false;                     // 角材終了判定
 void sender(char add,char dat);          // モーター動かす
 void sensor_reader(void);                // センサー読む
 void auto_run(void);                     // 角材
@@ -146,7 +148,9 @@ int main(){
                         }
                         break;
                     case 'k':
-                        state=2;
+                        speed=20;
+                        send('f');
+                        auto_run();
                         break;
                     }
                 }
@@ -158,10 +162,10 @@ int main(){
             }
         }
         if(state==2){
-            printf("kakuzai");
-            auto_run();
+            printf("kakuzai\n");
             speed=20;
             send('f');
+            auto_run();
         }
     }
 }
@@ -315,9 +319,11 @@ void debugger(){
 }
 
 void auto_run(void){
-    if(state==2){
+    if(state==1){
+        state=2;
         int flag = 0;
         bool finish = false;
+    }else if(state==2){
         // ここでもgetdataがちゃんとattachしてるかチェック
         //printf("%d\n",batu);
 
@@ -327,31 +333,20 @@ void auto_run(void){
             airF.write(1); // 前あげ
             flag=1;
             printf("mae!\n");
-        }
-        else if(dis[1] <= WOOD && flag == 1){
+        }else if(dis[1] <= WOOD && flag == 1){
             printf("gooo!\n");
             airF.write(0);
             ThisThread::sleep_for(100ms);
             airB.write(1);
             char buffer;
-            int index;
-            char cmd[128];
             for(int i = 0; i < 10; i++){
                 if(pc.read(&buffer,1)>0){
-                    if(buffer=='\n'){       // 改行だったら
-                        cmd[index]='\0';
-                        if(cmd=="k" || cmd=="p"){
-                            state=1;
-                            finish=true;
-                            send('s');
-                            break;
-                        }
-                        char cmd[128]="";
-                        index=0;
-                    }else{
-                        cmd[index]=buffer;
-                        index++;
+                    if(buffer=='k' || buffer=='p'){
+                        printf("stop kakuzai\n");
+                        finish=true;
+                        break;
                     }
+                    
                 }
                 ThisThread::sleep_for(100ms);
             }
@@ -360,7 +355,11 @@ void auto_run(void){
             if(finish){
                 finish = false;
                 flag = 0;
+            state=1;
+            send('s');
             }
+        }else{
+            printf("flag:%d",flag);
         }
     }
 }

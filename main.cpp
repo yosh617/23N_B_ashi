@@ -153,6 +153,7 @@ void sender(char add,char dat){
 }
 
 void send(char d){
+    printf("%c",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){
@@ -258,12 +259,13 @@ void sensor_reader(){
     if(old_CHIJIKI<0)raw_old_CHIJIKI=180-old_CHIJIKI;   //元の形に戻す 0~360
     else raw_old_CHIJIKI=old_CHIJIKI;
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
-    if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=180-raw_CHIJIKI_;  //-180~180に変換
+    if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
     else CHIJIKI_=raw_CHIJIKI_;
     CHIJIKI.getEulerFromQ(yaw_Q);
+    yaw_Q*=-1;
     // 飛びすぎてたら...
     if(compute_dig(raw_old_CHIJIKI, raw_CHIJIKI_)>max_warp){
-        
+        printf("飛びすぎぃ！！！\n");
     }
 }
 

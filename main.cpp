@@ -247,6 +247,7 @@ float compute_dig(float d1,float d2){
     while(d>180){
         d-=360;
     }
+    printf("dig: %f\n",abs(d));
     return abs(d);
 }
 
@@ -263,7 +264,7 @@ void sensor_reader(){
     CHIJIKI.setmode(OPERATION_MODE_NDOF);   //魔法
     CHIJIKI.get_angles();
     old_CHIJIKI=CHIJIKI_;   //入れ替え
-    if(old_CHIJIKI<0)raw_old_CHIJIKI=180-old_CHIJIKI;   //元の形に戻す 0~360
+    if(old_CHIJIKI<0)raw_old_CHIJIKI=old_CHIJIKI-360;   //元の形に戻す 0~360
     else raw_old_CHIJIKI=old_CHIJIKI;
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
     if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換

@@ -20,6 +20,7 @@ DigitalOut sig(PA_12);                     // 非常停止ボタン   0:動く  
 // エアシリンダーズ     0:伸ばす    1:縮む
 DigitalOut  airF(PA_13);                 // 前輪
 DigitalOut  airB(PH_1);                  // 後輪
+DigitalOut  airUE(PH_0);                 // パタパタエア
 DigitalOut ue_power(PC_8);               // 上電源確認君
 
 // 赤外線センサーズ
@@ -33,7 +34,7 @@ float old_CHIJIKI=0;                     // 前回の地磁気の値
 float raw_CHIJIKI_=0;                    // 生のデータ   0~360
 float raw_old_CHIJIKI=0;                 // 生のデータ   0~360
 float max_warp=75;                       // 許される瞬間の地磁気の変化量
-int warp=0;                              // 地磁気の飛び (x90)
+int warp=0;                              // 地磁気の飛び
 double yaw_Q=0;                          // 地磁気のすごいやつ！
 int goal=0;                              // 目標値
 void sender(char add,char dat);          // モーター動かす
@@ -55,6 +56,7 @@ int main(){
     sig.write(1);
     airF.write(0);
     airB.write(0);
+    airUE.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
@@ -81,10 +83,12 @@ int main(){
                     case 'p':
                         sig.write(1);
                         ue_power.write(0);
+                        airUE.write(1);
                         printf("pause!\n");
                         break;
                     case 'c':
                         sig.write(0);
+                        airUE.write(0);
                         ue_power.write(1);
                         printf("continue!\n");
                         break;
@@ -153,7 +157,7 @@ void sender(char add,char dat){
     motor.write(add);
     if(dat<min_speed)dat=min_speed;
     else if(max_speed<dat)dat=max_speed;
-    printf("dat: %d\n",dat);
+    // printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
     wait_us(100);
@@ -247,7 +251,7 @@ float compute_dig(float d1,float d2){
     while(d>180){
         d-=360;
     }
-    printf("dig: %f\n",abs(d));
+    // printf("dig: %f\n",abs(d));
     return abs(d);
 }
 
@@ -266,14 +270,18 @@ void sensor_reader(){
     old_CHIJIKI=CHIJIKI_;   //入れ替え
     if(old_CHIJIKI<0)raw_old_CHIJIKI=old_CHIJIKI-360;   //元の形に戻す 0~360
     else raw_old_CHIJIKI=old_CHIJIKI;
-    raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
-    if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
-    else CHIJIKI_=raw_CHIJIKI_;
+    // raw_CHIJIKI_=CHIJIKI.euler.yaw+warp;     //取得  0~360
+    // if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
+    // else CHIJIKI_=raw_CHIJIKI_;
     CHIJIKI.getEulerFromQ(yaw_Q);
     yaw_Q*=-1;
+    CHIJIKI_=yaw_Q;
     // 飛びすぎてたら...
-    if(compute_dig(raw_old_CHIJIKI, raw_CHIJIKI_)>max_warp){
+    if(compute_dig(raw_old_CHIJIKI, yaw_Q)>max_warp){
         printf("warping!!\n");
+        warp=-raw_old_CHIJIKI;
+        // CHIJIKI.reset();
+    
     }
 }
 

@@ -65,6 +65,7 @@ int main(){
     printf("loop start!\n");
     while(true){
         sensor_reader();
+        // debugger();
         if(pc.read(&buffer,1)>0){   // PCから受信したら
             if(buffer=='\n'){       // 改行だったら
                 cmd[index]='\0';    // \0 : 文字列の最後の意味
@@ -115,6 +116,7 @@ int main(){
                             }
                             break;
                         default:    // それ以外
+                            printf("%c",cmd[1]);
                             send(cmd[1]);   //  a + f,b,r,l,s
                             break;
                         }
@@ -147,6 +149,7 @@ void sender(char add,char dat){
     motor.write(add);
     if(dat<min_speed)dat=min_speed;
     else if(max_speed<dat)dat=max_speed;
+    printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
     wait_us(100);
@@ -265,7 +268,7 @@ void sensor_reader(){
     yaw_Q*=-1;
     // 飛びすぎてたら...
     if(compute_dig(raw_old_CHIJIKI, raw_CHIJIKI_)>max_warp){
-        printf("飛びすぎぃ！！！\n");
+        printf("warping!!\n");
     }
 }
 

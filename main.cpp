@@ -1,91 +1,52 @@
 #include "mbed.h"
 #include "BNO055.h"
-#include <chrono>
 
-// MDアドレス   右前,左前,右後,左後
-const int MD[4]={0x26,0x54,0x56,0x50};
-// [mm]
-int WOOD=100;
-// 全体スピード
-int speed=20;
-// 最大速度
-int max_speed=0xf0;
-// 最低速度
-int min_speed=0x10;
-// 個体値補正
-int hosei[4]={0};
-// 最終的なduty
-int duty[4]={0};
-// ブレーキ
-const char BRK = 0x80;
-/*
-状態
-0:準備中   1:main
-*/
-int state=0;
-// 前進計算
-int F(int s,int i);
-// 後退計算
-int B(int s,int i);
-// PCとのシリアル
-BufferedSerial pc(USBTX,USBRX);
-// MDとのI2C
-I2C motor(PB_9,PB_8);
-// 非常停止ボタン   0:動く  1:止まる
-DigitalOut sig(PA_12);
-// エアシリンダーズ
-DigitalOut  airF(PA_13); // 前輪
-DigitalOut  airB(PH_1); // 後輪
-// 上電源確認君
-DigitalOut ue_power(PC_8);
+const int MD[4]={0x26,0x54,0x56,0x50};     // MDアドレス   右前,左前,右後,左後
+int WOOD=100;                              // [mm]
+int speed=20;                              // 全体スピード
+int max_speed=0xf0;                        // 最大速度
+int min_speed=0x10;                        // 最低速度
+int hosei[4]={0};                          // 個体値補正
+int duty[4]={0};                           // 最終的なduty
+const char BRK = 0x80;                     // ブレーキ
+int senkai_speed=16;                       // 旋回速度
+int state=0;                               //0:準備中   1:main
+int F(int s,int i);                        // 前進計算
+int B(int s,int i);                        // 後退計算
+BufferedSerial pc(USBTX,USBRX);            // PCとのシリアル
+I2C motor(PB_9,PB_8);                      // MDとのI2C
+DigitalOut sig(PA_12);                     // 非常停止ボタン   0:動く  1:止まる
+
+// エアシリンダーズ     0:伸ばす    1:縮む
+DigitalOut  airF(PA_13);                 // 前輪
+DigitalOut  airB(PH_1);                  // 後輪
+DigitalOut ue_power(PC_8);               // 上電源確認君
+
 // 赤外線センサーズ
-AnalogIn    sensorF(PA_6); // 前
-AnalogIn    sensorB(PA_7); // 後
-// 生の値
-float value[2];
-// 計算後の値
-double dis[2]={};
-// ちじき        SDA SCL
-BNO055 CHIJIKI(PB_3,PB_10);
-// 地磁気の値 -180~0~180
-float CHIJIKI_=0;
-// 前回の地磁気の値
-float old_CHIJIKI=0;
-// 生のデータ   0~360
-float raw_CHIJIKI_=0;
-// 生のデータ   0~360
-float raw_old_CHIJIKI=0;
-// 許される瞬間の地磁気の変化量
-float max_warp=75;
-// 地磁気の飛び (x90)
-int warp=0;
-// 地磁気のすごいやつ！
-double yaw_Q=0;
-// 目標値
-int goal=0;
-// モーター動かす
-void sender(char add,char dat);
-// センサー読む
-void sensor_reader(void);
-// 角度の差を計算する
-float compute_dig(float d1,float d2);
-// 確認用関数
-void debugger(void);
-// 動き         direction fbrls
-void send(char d);
-// 補正
-void This_is_function_for_hosei(void);
-// 補正用 kゲイン
-long double p=1;
-//補正結果
-int chijiki_hosei[4]={0};
-// Ticker
-Ticker This_is_ticker_for_hosei;
-
-// 前進計算
-int F(int speed,int i){return BRK+speed+hosei[i]+chijiki_hosei[i];};
-// 後退計算
-int B(int speed,int i){return BRK-speed-hosei[i]-chijiki_hosei[i];};
+AnalogIn    sensorF(PA_6);               // 前
+AnalogIn    sensorB(PA_7);               // 後
+float value[2];                          // 生の値
+double dis[2]={};                        // 計算後の値
+BNO055 CHIJIKI(PB_3,PB_10);              // ちじき        SDA SCL
+float CHIJIKI_=0;                        // 地磁気の値 -180~0~180
+float old_CHIJIKI=0;                     // 前回の地磁気の値
+float raw_CHIJIKI_=0;                    // 生のデータ   0~360
+float raw_old_CHIJIKI=0;                 // 生のデータ   0~360
+float max_warp=75;                       // 許される瞬間の地磁気の変化量
+int warp=0;                              // 地磁気の飛び (x90)
+double yaw_Q=0;                          // 地磁気のすごいやつ！
+int goal=0;                              // 目標値
+void sender(char add,char dat);          // モーター動かす
+void sensor_reader(void);                // センサー読む
+float compute_dig(float d1,float d2);    // 角度の差を計算する
+void debugger(void);                     // 確認用関数
+void send(char d);                       // 動き         direction fbrls
+void This_is_function_for_hosei(void);   // 補正
+long double p=1;                         // 補正用 kゲイン
+int chijiki_hosei[4]={0};                // 補正結果
+Ticker This_is_ticker_for_hosei;         // Ticker
+int F(int speed,int i){return BRK+speed+hosei[i]+chijiki_hosei[i];};    // 前進計算
+int B(int speed,int i){return BRK-speed-hosei[i]-chijiki_hosei[i];};    // 後退計算
 
 // main関数
 int main(){
@@ -93,7 +54,7 @@ int main(){
     ue_power.write(0);
     sig.write(1);
     airF.write(0);
-    airB.write(1);
+    airB.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
@@ -103,12 +64,12 @@ int main(){
     state=1;
     printf("loop start!\n");
     while(true){
-        if(pc.read(&buffer,1)>0){
-            if(buffer=='\n'){
-                cmd[index]='\0';
+        if(pc.read(&buffer,1)>0){   // PCから受信したら
+            if(buffer=='\n'){       // 改行だったら
+                cmd[index]='\0';    // \0 : 文字列の最後の意味
                 if(cmd[0]=='v'){
                     switch(cmd[1]){
-                        printf("...\n");
+                        printf("...\n");    // 未実装
                     }
                 }else if(state==1){
                     switch(cmd[0]){
@@ -125,7 +86,7 @@ int main(){
                         ue_power.write(1);
                         printf("continue!\n");
                         break;
-                    case 'a':
+                    case 'a':   // 足回り
                         speed=atoi(&cmd[2]);
                         switch(cmd[1]){
                         case 'a':
@@ -133,29 +94,41 @@ int main(){
                             case 'f':
                                 switch(cmd[3]){
                                 case 'u':
-                                    airF.write(1);
+                                    airF.write(1);  // aafu
                                     break;
                                 case 'd':
-                                    airF.write(0);
+                                    airF.write(0);  //aafd
                                     break;
                                 }
                                 break;
                             case 'b':
                                 switch(cmd[3]){
                                 case 'u':
-                                    airB.write(1);
+                                    airB.write(1);  //aabu
                                     break;
                                 case 'd':
-                                    airB.write(0);
+                                    airB.write(0);  //aabd
                                     break;
                                 }
                                 break;
                             }
                             break;
-                        default:
-                            send(cmd[1]);
+                        default:    // それ以外
+                            send(cmd[1]);   //  a + f,b,r,l,s
                             break;
                         }
+                    case 's':   // 旋回
+                        switch(cmd[1]){
+                        case 'r':
+                            speed=atoi(&cmd[2]);
+                            send('R');
+                            break;
+                        case 'l':
+                            speed=atoi(&cmd[2]);
+                            send('L');
+                            break;
+                        }
+                        break;
                     }
                 }
                 char cmd[128]="";
@@ -180,17 +153,17 @@ void sender(char add,char dat){
 
 void send(char d){
     switch(d){
-    case 'f':
+    case 'f':   // 前
         for(int i=0;i<4;i++){
             sender(MD[i],F(speed,i));
         }
         break;
-    case 'b':
+    case 'b':   // 後
         for(int i=0;i<4;i++){
             sender(MD[i],B(speed,i));
         }
         break;
-    case 'r':
+    case 'r':   // 右
         for(int i=0;i<4;i++){
             if(i==0||i==3){
                 sender(MD[i],B(speed,i));
@@ -199,12 +172,30 @@ void send(char d){
             }
         }
         break;
-    case 'l':
+    case 'l':   // 左
         for(int i=0;i<4;i++){
             if(i==0||i==3){
                 sender(MD[i],F(speed,i));
             }else{
                 sender(MD[i],B(speed,i));
+            }
+        }
+        break;
+    case 'R':   // 右旋回
+        for(int i=0;i<4;i++){
+            if(i==0||i==2){
+                sender(MD[i],B(speed,i)+senkai_speed);
+            }else{
+                sender(MD[i],F(speed,i)-senkai_speed);
+            }
+        }
+        break;
+    case 'L':   // 左旋回
+        for(int i=0;i<4;i++){
+            if(i==1||i==3){
+                sender(MD[i],B(speed,i)+senkai_speed);
+            }else{
+                sender(MD[i],F(speed,i)-senkai_speed);
             }
         }
         break;
@@ -274,15 +265,16 @@ void sensor_reader(){
 }
 
 void debugger(){
-    printf("--------------------\n");
-    printf("sig             :   %d\n",sig.read());
-    printf("CHIJIKI_        :   %f\n",CHIJIKI_);
-    printf("CHIJIKI_Q       :   %f\n",yaw_Q);
-    printf("distance        :   %f , %f\n",dis[0],dis[1]);
-    printf("speed           :   %d\n",speed);
-    printf("motor           :   MM HM MU HU\n");
-    printf("hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
-    printf("CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
-    printf("final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
-    printf("--------------------\n");
+    printf("+------------------------------------\n");
+    printf("| sig             :   %d\n",sig.read());
+    printf("| CHIJIKI_        :   %f\n",CHIJIKI_);
+    printf("| CHIJIKI_Q       :   %f\n",yaw_Q);
+    printf("| distance        :   %f , %f\n",dis[0],dis[1]);
+    printf("| speed           :   %d\n",speed);
+    printf("+------------------------------------\n");
+    printf("| motor           :   MM HM MU HU\n");
+    printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
+    printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
+    printf("| final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
+    printf("+------------------------------------\n");
 }

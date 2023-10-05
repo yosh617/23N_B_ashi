@@ -1,3 +1,4 @@
+#include "SerialBase.h"
 #include "UnbufferedSerial.h"
 #include "mbed.h"
 #include "BNO055.h"
@@ -18,6 +19,9 @@ int F(int s,int i); // 前進計算
 int B(int s,int i); // 後退計算
 BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
 UnbufferedSerial Upc(USBTX,USBRX);  // PCとのUnbuffered Serial (state==2)
+void input(void);   // attach用
+bool received=false;    // Unbuffered data received
+char Ubuffer;   // Unbuffered buffer data
 I2C motor(PB_9,PB_8);   // MDとのI2C
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
@@ -67,10 +71,11 @@ int main(){
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
-    char buffer;
-    int index;
-    char cmd[128];
-    state=0;
+    char buffer;    // 一文字
+    int index;  // いま何もじめ？
+    char cmd[128];  // コマンド文字列
+    Upc.attach(input,SerialBase::RxIrq);
+    state=1;
     printf("loop start!\n");
     while(true){
         sensor_reader();
@@ -167,12 +172,12 @@ int main(){
                         }
                         break;
                     case 'k':
-                        airF.write(0);
-                        airB.write(0);
+                        airF.write(0);  // age
+                        airB.write(0);  // age
                         printf("kakuzai k\n");
-                        speed=kakuzai_speed;
-                        send('f');
-                        auto_running=true;
+                        speed=kakuzai_speed;    // slow...
+                        send('f');  // going
+                        auto_running=true;  // allow auto run
                         auto_run();
                         break;
                     }
@@ -184,9 +189,28 @@ int main(){
                 }
             }
         }else if(state==2){
-
+            if(received){
+                received=false;
+                printf("received!!:%c\n",Ubuffer);
+                switch(Ubuffer){
+                    case 'p':
+                        send('s');
+                        state=1;
+                        break;
+                    case 'k':
+                        send('s');
+                        state=1;
+                        break;
+                }
+            }
+            auto_run();
         }
     }
+}
+
+void input(){
+    pc.read(&Ubuffer,1);
+    if(state==2)received=true;
 }
 
 void sender(char add,char dat){
@@ -373,13 +397,13 @@ void auto_run(void){
                 airB.write(1);
                 char buffer;
                 for(int i = 0; i < 20; i++){
-                    if(pc.read(&buffer,1)>0){
-                        if(buffer=='k' || buffer=='p'){
-                            printf("stop kakuzai\n");
-                            finish=true;
-                            break;
-                        }
-                        
+                    if(received){
+                       received=false;
+                       if(Ubuffer=='k' || Ubuffer=='p'){
+                           printf("stop kakuzai!\n");
+                           finish=true;
+                           break;
+                       }
                     }
                     printf("sleep\n");
                     ThisThread::sleep_for(100ms);
@@ -391,8 +415,9 @@ void auto_run(void){
                     printf("finished\n");
                     finish = false;
                     flag = 0;
-                state=0;
+                state=1;
                 send('s');
+                printf("state:1 switched\n");
                 }
             }else{
                 printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);

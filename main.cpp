@@ -54,7 +54,7 @@ int B(int speed,int i){return BRK-speed-hosei[i];};    //-chijiki_hosei[i];};   
 
 // main関数
 int main(){
-    printf("mbed start...");
+    printf("mbed start...\n");
     ue_power.write(0);
     sig.write(1);
     airF.write(0);
@@ -70,13 +70,14 @@ int main(){
     printf("loop start!\n");
     while(true){
         sensor_reader();
-        debugger();
+        // debugger();
         if(pc.read(&buffer,1)>0){   // PCから受信したら
             if(buffer=='\n'){       // 改行だったら
                 cmd[index]='\0';    // \0 : 文字列の最後の意味
+                printf("cmd:%s\n",cmd);
                 if(cmd[0]=='v'){
+                    //printf("...\n");    // 未実装
                     switch(cmd[1]){
-                        printf("...\n");    // 未実装
                     }
                 }else if(state==1){
                     switch(cmd[0]){
@@ -88,18 +89,18 @@ int main(){
                         sig.write(1);
                         airUE.write(1);
                         ue_power.write(0);
-                        printf("pause!\n");
+                        //printf("pause!\n");
                         break;
                     case 'c':
                         send('s');
                         sig.write(0);
                         airUE.write(0);
                         ue_power.write(1);
-                        printf("continue!\n");
+                        //printf("continue!\n");
                         break;
                     case 'a':   // 足回り
                         speed=atoi(&cmd[2]);
-                        printf("a:%c\n",cmd[1]);
+                        //printf("a:%c\n",cmd[1]);
                         switch(cmd[1]){
                         case 'a':
                             switch(cmd[2]){
@@ -126,7 +127,7 @@ int main(){
                             }
                             break;
                         default:    // それ以外
-                            printf("cmd:%c\n",cmd[1]);
+                            //printf("cmd:%c\n",cmd[1]);
                             send(cmd[1]);   //  a + f,b,r,l,s
                             break;
                         }
@@ -148,10 +149,21 @@ int main(){
                         }
                         break;
                     case 'k':
+                        printf("kakuzai\n");
                         speed=10;
                         send('f');
                         auto_run();
                         break;
+                    }
+                }else if(state==2){
+                    if(cmd[0]=='g'){
+                        printf("kakuzai\n");
+                        speed=10;
+                        send('f');
+                        auto_run();
+                    }else if(cmd[0]=='k' || cmd[0]=='p' || cmd[0]=='c'){
+                        state=1;
+                        send('s');
                     }
                 }
                 char cmd[128]="";
@@ -161,12 +173,6 @@ int main(){
                 index++;
             }
         }
-        if(state==2){
-            printf("kakuzai\n");
-            speed=10;
-            send('f');
-            auto_run();
-        }
     }
 }
 
@@ -175,14 +181,14 @@ void sender(char add,char dat){
     motor.write(add);
     if(dat<min_speed)dat=min_speed;
     else if(max_speed<dat)dat=max_speed;
-    // printf("dat: %d\n",dat);
+    // //printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
     wait_us(100);
 }
 
 void send(char d){
-    printf("switch:%c\n",d);
+    //printf("switch:%c\n",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){
@@ -269,7 +275,7 @@ float compute_dig(float d1,float d2){
     while(d>180){
         d-=360;
     }
-    // printf("dig: %f\n",abs(d));
+    // //printf("dig: %f\n",abs(d));
     return abs(d);
 }
 
@@ -296,7 +302,7 @@ void sensor_reader(){
     CHIJIKI_=yaw_Q;
     // 飛びすぎてたら...
     if(compute_dig(raw_old_CHIJIKI, yaw_Q)>max_warp){
-        printf("warping!!\n");
+        //printf("warping!!\n");
         warp=-raw_old_CHIJIKI;
         // CHIJIKI.reset();
     
@@ -311,11 +317,11 @@ void debugger(){
     printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
     printf("+------------------------------------\n");
-    printf("| motor           :   MM HM MU HU\n");
-    printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
-    printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
-    printf("| final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
-    printf("+------------------------------------\n");
+    // printf("| motor           :   MM HM MU HU\n");
+    // printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
+    // printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
+    // printf("| final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
+    // printf("+------------------------------------\n");
 }
 
 void auto_run(void){
@@ -358,7 +364,7 @@ void auto_run(void){
             send('s');
             }
         }else{
-            printf("flag:%d\n",flag);
+            printf("flag:%d\tdis0:%f\tdis1:%f\t\t",flag,dis[0],dis[1]);
         }
     }
 }

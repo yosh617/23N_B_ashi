@@ -2,7 +2,7 @@
 #include "BNO055.h"
 
 const int MD[4]={0x26,0x54,0x56,0x50};     // MDアドレス   右前,左前,右後,左後
-int WOOD=100;                              // [mm]
+int WOOD=300;                              // [mm]
 int speed=20;                              // 全体スピード
 int max_speed=0xf0;                        // 最大速度
 int min_speed=0x10;                        // 最低速度
@@ -11,6 +11,7 @@ int duty[4]={0};                           // 最終的なduty
 const char BRK = 0x80;                     // ブレーキ
 int senkai_speed=16;                       // 旋回速度
 int state=0;                               // 0:準備中   1:main  2:auto_run
+bool auto_running=false;                   // auto_run予備停止用
 int F(int s,int i);                        // 前進計算
 int B(int s,int i);                        // 後退計算
 BufferedSerial pc(USBTX,USBRX);            // PCとのシリアル
@@ -74,7 +75,7 @@ int main(){
         if(pc.read(&buffer,1)>0){   // PCから受信したら
             if(buffer=='\n'){       // 改行だったら
                 cmd[index]='\0';    // \0 : 文字列の最後の意味
-                printf("cmd:%s\n",cmd);
+                // printf("cmd:%s\n",cmd);
                 if(cmd[0]=='v'){
                     //printf("...\n");    // 未実装
                     switch(cmd[1]){
@@ -149,15 +150,16 @@ int main(){
                         }
                         break;
                     case 'k':
-                        printf("kakuzai\n");
+                        printf("kakuzai k\n");
                         speed=10;
                         send('f');
+                        auto_running=true;
                         auto_run();
                         break;
                     }
                 }else if(state==2){
                     if(cmd[0]=='g'){
-                        printf("kakuzai\n");
+                        printf("kakuzai g\n");
                         speed=10;
                         send('f');
                         auto_run();
@@ -165,6 +167,12 @@ int main(){
                         state=1;
                         send('s');
                     }
+                }else if(state==0){
+                    auto_running=false;
+                    printf("stop auto_run and start main\n");
+                    send('s');
+                    state=1;
+
                 }
                 char cmd[128]="";
                 index=0;
@@ -324,47 +332,63 @@ void debugger(){
     // printf("+------------------------------------\n");
 }
 
-void auto_run(void){
-    if(state==1){
-        state=2;
-        int flag = 0;
-        bool finish = false;
-        printf("state:2\n");
-    }else if(state==2){
 
-        sensor_reader();
-        // debugger();
-        if(dis[0] <= WOOD && flag == 0){
-            airF.write(1); // 前あげ
-            flag=1;
-            printf("mae!\n");
-        }else if(dis[1] <= WOOD && flag == 1){
-            printf("gooo!\n");
-            airF.write(0);
-            ThisThread::sleep_for(100ms);
-            airB.write(1);
-            char buffer;
-            for(int i = 0; i < 10; i++){
-                if(pc.read(&buffer,1)>0){
-                    if(buffer=='k' || buffer=='p'){
-                        printf("stop kakuzai\n");
-                        finish=true;
-                        break;
-                    }
-                    
-                }
+/*
+   \|state | flag | finish | action
+----+------+------+--------+-----------------------------
+  1 |  1   |   0  |  false | 変数初期化、準備
+  2 |  2   |   0  |  false | 角材が来るまでまつ→前あげ→flag 0->1
+  3 |  2   |   1  |  false | 角材を前が超えるのを待つ→前下げ、後ろ上げ→10s待つ（k,pコマンド受付→auto_run停止）
+  4 |  2   |   1  |  false | 10s待ち終わった→後ろ下げ→初期化＆mainに戻す: state 2->0
+  5 |  1   |   0  |  true  | main loop
+*/
+void auto_run(void){
+    if(auto_running){
+        if(state==1){
+            state=2;
+            int flag = 0;
+            bool finish = false;
+            printf("state:2\n");
+        }else if(state==2){
+
+            sensor_reader();
+            // debugger();
+            if(dis[0] <= WOOD && flag == 0){
+                airF.write(1); // 前あげ
+                flag=1;
+                printf("----------mae!----------\n");
+            }else if(dis[1] <= WOOD && flag == 1){
+                flag=2;
+                printf("----------go!----------\n");
+                airF.write(0);
                 ThisThread::sleep_for(100ms);
+                printf("air change\n");
+                airB.write(1);
+                char buffer;
+                for(int i = 0; i < 20; i++){
+                    if(pc.read(&buffer,1)>0){
+                        if(buffer=='k' || buffer=='p'){
+                            printf("stop kakuzai\n");
+                            finish=true;
+                            break;
+                        }
+                        
+                    }
+                    printf("sleep\n");
+                    ThisThread::sleep_for(100ms);
+                }
+                printf("fin\n");
+                airB.write(0);
+                if(finish){
+                    printf("finished\n");
+                    finish = false;
+                    flag = 0;
+                state=0;
+                send('s');
+                }
+            }else{
+                printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
             }
-            printf("fin\n");
-            airB.write(0);
-            if(finish){
-                finish = false;
-                flag = 0;
-            state=1;
-            send('s');
-            }
-        }else{
-            printf("flag:%d\tdis0:%f\tdis1:%f\t\t",flag,dis[0],dis[1]);
         }
     }
 }

@@ -70,7 +70,7 @@ int main(){
     printf("loop start!\n");
     while(true){
         sensor_reader();
-        // debugger();
+        debugger();
         if(pc.read(&buffer,1)>0){   // PCから受信したら
             if(buffer=='\n'){       // 改行だったら
                 cmd[index]='\0';    // \0 : 文字列の最後の意味
@@ -148,7 +148,7 @@ int main(){
                         }
                         break;
                     case 'k':
-                        speed=20;
+                        speed=10;
                         send('f');
                         auto_run();
                         break;
@@ -163,7 +163,7 @@ int main(){
         }
         if(state==2){
             printf("kakuzai\n");
-            speed=20;
+            speed=10;
             send('f');
             auto_run();
         }
@@ -323,6 +323,7 @@ void auto_run(void){
         state=2;
         int flag = 0;
         bool finish = false;
+        printf("state:2\n");
     }else if(state==2){
 
         sensor_reader();
@@ -357,7 +358,7 @@ void auto_run(void){
             send('s');
             }
         }else{
-            printf("flag:%d",flag);
+            printf("flag:%d\n",flag);
         }
     }
 }

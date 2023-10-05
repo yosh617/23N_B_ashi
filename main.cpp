@@ -2,7 +2,7 @@
 #include "BNO055.h"
 
 const int MD[4]={0x26,0x54,0x56,0x50};     // MDアドレス   右前,左前,右後,左後
-int WOOD=300;                              // [mm]
+int WOOD=100;                              // [mm]
 int speed=20;                              // 全体スピード
 int max_speed=0xf0;                        // 最大速度
 int min_speed=0x10;                        // 最低速度
@@ -77,8 +77,11 @@ int main(){
                 cmd[index]='\0';    // \0 : 文字列の最後の意味
                 // printf("cmd:%s\n",cmd);
                 if(cmd[0]=='v'){
-                    //printf("...\n");    // 未実装
                     switch(cmd[1]){
+                    case 'w':
+                        WOOD=atoi(&cmd[2]);
+                        printf("%d\n",WOOD);
+                        break;
                     }
                 }else if(state==1){
                     switch(cmd[0]){
@@ -159,10 +162,14 @@ int main(){
                     }
                 }else if(state==2){
                     if(cmd[0]=='g'){
-                        printf("kakuzai g\n");
-                        speed=10;
-                        send('f');
-                        auto_run();
+                        if(auto_running){
+                            printf("kakuzai g\n");
+                            speed=10;
+                            send('f');
+                            auto_run();
+                        }else{
+                            send('s');
+                        }
                     }else if(cmd[0]=='k' || cmd[0]=='p' || cmd[0]=='c'){
                         state=1;
                         send('s');
@@ -339,8 +346,8 @@ void debugger(){
   1 |  1   |   0  |  false | 変数初期化、準備
   2 |  2   |   0  |  false | 角材が来るまでまつ→前あげ→flag 0->1
   3 |  2   |   1  |  false | 角材を前が超えるのを待つ→前下げ、後ろ上げ→10s待つ（k,pコマンド受付→auto_run停止）
-  4 |  2   |   1  |  false | 10s待ち終わった→後ろ下げ→初期化＆mainに戻す: state 2->0
-  5 |  1   |   0  |  true  | main loop
+  4 |  2   |   2  |  false | 10s待ち終わった→後ろ下げ→初期化＆mainに戻す: state 2->0
+  5 |  1   | 2->0 |  true  | main loop
 */
 void auto_run(void){
     if(auto_running){
@@ -357,9 +364,11 @@ void auto_run(void){
                 airF.write(1); // 前あげ
                 flag=1;
                 printf("----------mae!----------\n");
+                printf("dis0:%f\n",dis[0]);
             }else if(dis[1] <= WOOD && flag == 1){
                 flag=2;
                 printf("----------go!----------\n");
+                printf("dis1:%f\n",dis[1]);
                 airF.write(0);
                 ThisThread::sleep_for(100ms);
                 printf("air change\n");
@@ -378,6 +387,7 @@ void auto_run(void){
                     ThisThread::sleep_for(100ms);
                 }
                 printf("fin\n");
+                auto_running=false;
                 airB.write(0);
                 if(finish){
                     printf("finished\n");
@@ -389,6 +399,7 @@ void auto_run(void){
             }else{
                 printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
             }
+
         }
     }
 }

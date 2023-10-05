@@ -1,55 +1,58 @@
+#include "UnbufferedSerial.h"
 #include "mbed.h"
 #include "BNO055.h"
 
-const int MD[4]={0x26,0x54,0x56,0x50};     // MDアドレス   右前,左前,右後,左後
-int WOOD=100;                              // [mm]
-int speed=20;                              // 全体スピード
-int max_speed=0xf0;                        // 最大速度
-int min_speed=0x10;                        // 最低速度
-int hosei[4]={0};                          // 個体値補正
-int duty[4]={0};                           // 最終的なduty
-const char BRK = 0x80;                     // ブレーキ
-int senkai_speed=16;                       // 旋回速度
-int state=0;                               // 0:準備中   1:main  2:auto_run
-bool auto_running=false;                   // auto_run予備停止用
-int F(int s,int i);                        // 前進計算
-int B(int s,int i);                        // 後退計算
-BufferedSerial pc(USBTX,USBRX);            // PCとのシリアル
-I2C motor(PB_9,PB_8);                      // MDとのI2C
-DigitalOut sig(PA_12);                     // 非常停止ボタン   0:動く  1:止まる
+const int MD[4]={0x26,0x54,0x56,0x50};  // MDアドレス   右前,左前,右後,左後
+int WOOD=100;   // [mm]
+int speed=20;   // 全体スピード
+int max_speed=0xf0; // 最大速度
+int min_speed=0x10; // 最低速度
+int hosei[4]={0};   // 個体値補正
+int duty[4]={0};    // 最終的なduty
+int kakuzai_speed=20;   // 角材超えるときのスピード
+const char BRK = 0x80;  // ブレーキ
+int senkai_speed=16;    // 旋回速度
+int state=0;    // 0:準備中   1:main  2:auto_run
+bool auto_running=false;    // auto_run予備停止用
+int F(int s,int i); // 前進計算
+int B(int s,int i); // 後退計算
+BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
+UnbufferedSerial Upc(USBTX,USBRX);  // PCとのUnbuffered Serial (state==2)
+I2C motor(PB_9,PB_8);   // MDとのI2C
+DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
 // エアシリンダーズ     0:伸ばす    1:縮む
-DigitalOut  airF(PA_13);                 // 前輪
-DigitalOut  airB(PH_1);                  // 後輪
-DigitalOut  airUE(PH_0);                 // パタパタエア
-DigitalOut ue_power(PC_8);               // 上電源確認君
+DigitalOut  airF(PA_13);    // 前輪
+DigitalOut  airB(PH_1);     // 後輪
+DigitalOut  airUE(PH_0);    // パタパタエア
+DigitalOut ue_power(PC_8);  // 上電源確認君
 
 // 赤外線センサーズ
-AnalogIn    sensorF(PA_6);               // 前
-AnalogIn    sensorB(PA_7);               // 後
-float value[2];                          // 生の値
-double dis[2]={};                        // 計算後の値
-BNO055 CHIJIKI(PB_3,PB_10);              // ちじき        SDA SCL
-float CHIJIKI_=0;                        // 地磁気の値 -180~0~180
-float old_CHIJIKI=0;                     // 前回の地磁気の値
-float raw_CHIJIKI_=0;                    // 生のデータ   0~360
-float raw_old_CHIJIKI=0;                 // 生のデータ   0~360
-float max_warp=75;                       // 許される瞬間の地磁気の変化量
-int warp=0;                              // 地磁気の飛び
-double yaw_Q=0;                          // 地磁気のすごいやつ！
-int goal=0;                              // 目標値
-int flag = 0;                            // 角材用フラグ
-bool finish = false;                     // 角材終了判定
-void sender(char add,char dat);          // モーター動かす
-void sensor_reader(void);                // センサー読む
-void auto_run(void);                     // 角材
-float compute_dig(float d1,float d2);    // 角度の差を計算する
-void debugger(void);                     // 確認用関数
-void send(char d);                       // 動き         direction fbrls
-void This_is_function_for_hosei(void);   // 補正
-long double p=1;                         // 補正用 kゲイン
-int chijiki_hosei[4]={0};                // 補正結果
-Ticker This_is_ticker_for_hosei;         // Ticker
+AnalogIn    sensorF(PA_6);  // 前
+AnalogIn    sensorB(PA_7);  // 後
+float value[2]; // 生の値
+double dis[2]={};   // 計算後の値
+BNO055 CHIJIKI(PB_3,PB_10); // ちじき        SDA SCL
+float CHIJIKI_=0;   // 地磁気の値 -180~0~180
+float old_CHIJIKI=0;    // 前回の地磁気の値
+float raw_CHIJIKI_=0;   // 生のデータ   0~360
+float raw_old_CHIJIKI=0;    // 生のデータ   0~360
+float max_warp=75;  // 許される瞬間の地磁気の変化量
+int warp=0; // 地磁気の飛び
+double yaw_Q=0; // 地磁気のすごいやつ！
+int goal=0; // 目標値
+int flag = 0;   // 角材用フラグ
+bool finish = false;    // 角材終了判定
+void sender(char add,char dat); // モーター動かす
+void sensor_reader(void);   // センサー読む
+void auto_run(void);    // 角材
+float compute_dig(float d1,float d2);   // 角度の差を計算する
+void debugger(void);    // 確認用関数
+void send(char d);  // 動き         direction fbrls
+void This_is_function_for_hosei(void);  // 補正
+long double p=1;    // 補正用 pゲイン
+int chijiki_hosei[4]={0};   // 補正結果
+Ticker This_is_ticker_for_hosei;    // Ticker
 int F(int speed,int i){return BRK+speed+hosei[i];};    //+chijiki_hosei[i];};    // 前進計算
 int B(int speed,int i){return BRK-speed-hosei[i];};    //-chijiki_hosei[i];};    // 後退計算
 
@@ -67,37 +70,48 @@ int main(){
     char buffer;
     int index;
     char cmd[128];
-    state=1;
+    state=0;
     printf("loop start!\n");
     while(true){
         sensor_reader();
         // debugger();
-        if(pc.read(&buffer,1)>0){   // PCから受信したら
-            if(buffer=='\n'){       // 改行だったら
-                cmd[index]='\0';    // \0 : 文字列の最後の意味
-                // printf("cmd:%s\n",cmd);
-                if(cmd[0]=='v'){
-                    switch(cmd[1]){
-                    case 'w':
-                        WOOD=atoi(&cmd[2]);
-                        printf("%d\n",WOOD);
-                        break;
-                    }
-                }else if(state==1){
+        if(state==0){
+        }
+        if(state==1){
+            if(pc.read(&buffer,1)>0){   // PCから受信したら
+                if(buffer=='\n'){       // 改行だったら
+                    cmd[index]='\0';    // \0 : 文字列の最後の意味
+                    // printf("cmd:%s\n",cmd);
                     switch(cmd[0]){
-                    case 'd':
+                    case 'v':
+                        switch(cmd[1]){
+                        case 'w':   //vw
+                            WOOD=atoi(&cmd[2]);
+                            printf("%d\n",WOOD);
+                            break;
+                        case 'k':   //vk
+                            kakuzai_speed=atoi(&cmd[2]);
+                            printf("%d\n",kakuzai_speed);
+                            break;
+                        }
+                        break;
+                    case 'd':   //d
                         debugger();
                         break;
-                    case 'p':
+                    case 'p':   //p
                         send('s');
                         sig.write(1);
+                        airF.write(0);
+                        airB.write(0);
                         airUE.write(1);
                         ue_power.write(0);
                         //printf("pause!\n");
                         break;
-                    case 'c':
+                    case 'c':   //c
                         send('s');
                         sig.write(0);
+                        airF.write(0);
+                        airB.write(0);
                         airUE.write(0);
                         ue_power.write(1);
                         //printf("continue!\n");
@@ -153,40 +167,24 @@ int main(){
                         }
                         break;
                     case 'k':
+                        airF.write(0);
+                        airB.write(0);
                         printf("kakuzai k\n");
-                        speed=10;
+                        speed=kakuzai_speed;
                         send('f');
                         auto_running=true;
                         auto_run();
                         break;
                     }
-                }else if(state==2){
-                    if(cmd[0]=='g'){
-                        if(auto_running){
-                            printf("kakuzai g\n");
-                            speed=10;
-                            send('f');
-                            auto_run();
-                        }else{
-                            send('s');
-                        }
-                    }else if(cmd[0]=='k' || cmd[0]=='p' || cmd[0]=='c'){
-                        state=1;
-                        send('s');
-                    }
-                }else if(state==0){
-                    auto_running=false;
-                    printf("stop auto_run and start main\n");
-                    send('s');
-                    state=1;
-
+                    char cmd[128]="";
+                    index=0;
+                }else{
+                    cmd[index]=buffer;
+                    index++;
                 }
-                char cmd[128]="";
-                index=0;
-            }else{
-                cmd[index]=buffer;
-                index++;
             }
+        }else if(state==2){
+
         }
     }
 }

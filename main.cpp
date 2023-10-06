@@ -89,7 +89,7 @@ int main(){
             // if(pc.read(&buffer,1)>0){   // PCから受信したら
                 // led=!led;
             if(received){
-                printf("cmd:%s\n",data);
+                // printf("cmd:%s\n",data);
                 switch(data[0]){
                 case 'v':
                     switch(data[1]){
@@ -357,13 +357,18 @@ void sensor_reader(){
 }
 
 void debugger(){
-    printf("+------------------------------------\n");
+    printf("+-----------------------------\n");
     printf("| sig             :   %d\n",sig.read());
     printf("| CHIJIKI_        :   %f\n",CHIJIKI_);
     printf("| CHIJIKI_Q       :   %f\n",yaw_Q);
     printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
-    printf("+------------------------------------\n");
+    printf("+-----------------------------\n");
+    printf("+-----------------------------\n");
+    printf("| WOOD            (w):%d\n",WOOD);
+    printf("| kakuzai_speed   (k):%d\n",kakuzai_speed);
+    printf("| speed           (s):%d\n",speed);
+    printf("+-----------------------------\n");
     // printf("| motor           :   MM HM MU HU\n");
     // printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
     // printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);

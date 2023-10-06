@@ -81,8 +81,11 @@ int main(){
     while(true){
         sensor_reader();
         // debugger();
-
-        if(state==1){
+        if(state==0){
+            send('s');
+            state=1;
+            received=false;
+        }else if(state==1){
             // if(pc.read(&buffer,1)>0){   // PCから受信したら
                 // led=!led;
             if(received){
@@ -213,8 +216,9 @@ void input(){
         if(data[0]=='p'){
             sig=1;
         }else if(state==2){
-            send('s');
-            state=1;
+            if(data[0]=='p' or data[0]=='k'){
+                state=0;
+            }
         }
     }
 }

@@ -24,7 +24,7 @@ void input(void);   // attach用
 bool received=false;    // Unbuffered data received
 char Ubuffer;   // Unbuffered buffer data
 I2C motor(PB_9,PB_8);   // MDとのI2C
-DigitalOut led(LED1);   // led
+// AnalogOut led(LED1);   // led
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
 // エアシリンダーズ     0:伸ばす    1:縮む
@@ -71,16 +71,16 @@ int main(){
     airB.write(0);
     airUE.write(0);
     CHIJIKI.reset();
-    // while(!CHIJIKI.check());
+    while(!CHIJIKI.check());
     // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
     char buffer;    // 一文字
     int index;  // いま何もじめ？
     char cmd[128];  // コマンド文字列
     Upc.attach(input,SerialBase::RxIrq);
-    Upc.enable_input(false);
-    Upc.enable_output(false);
-    pc.enable_input(true);
-    pc.enable_output(true);
+    // Upc.enable_input(false);
+    // Upc.enable_output(false);
+    // pc.enable_input(true);
+    // pc.enable_output(true);
     state=1;
     printf("loop start!\n");
     while(true){
@@ -89,7 +89,7 @@ int main(){
 
         if(state==1){
             if(pc.read(&buffer,1)>0){   // PCから受信したら
-                led=!led;
+                // led=!led;
                 if(buffer=='\n'){       // 改行だったら
                     cmd[index]='\0';    // \0 : 文字列の最後の意味
                     printf("cmd:%s\n",cmd);
@@ -116,7 +116,7 @@ int main(){
                         airB.write(0);
                         airUE.write(1);
                         ue_power.write(0);
-                        //printf("pause!\n");
+                        printf("pause!\n");
                         break;
                     case 'c':   //c
                         send('s');
@@ -125,7 +125,7 @@ int main(){
                         airB.write(0);
                         airUE.write(0);
                         ue_power.write(1);
-                        //printf("continue!\n");
+                        printf("continue!\n");
                         break;
                     case 'a':   // 足回り
                         speed=atoi(&cmd[2]);
@@ -184,8 +184,8 @@ int main(){
                         speed=kakuzai_speed;    // slow...
                         send('f');  // going
                         auto_running=true;  // allow auto run
-                        Upc.enable_input(true);
-                        Upc.enable_output(true);
+                        // Upc.enable_input(true);
+                        // Upc.enable_output(true);
                         auto_run();
                         break;
                     }

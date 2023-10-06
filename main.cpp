@@ -1,3 +1,4 @@
+#include "BufferedSerial.h"
 #include "SerialBase.h"
 #include "UnbufferedSerial.h"
 #include "mbed.h"
@@ -23,6 +24,7 @@ void input(void);   // attach用
 bool received=false;    // Unbuffered data received
 char Ubuffer;   // Unbuffered buffer data
 I2C motor(PB_9,PB_8);   // MDとのI2C
+DigitalOut led(LED1);   // led
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
 // エアシリンダーズ     0:伸ばす    1:縮む
@@ -69,24 +71,26 @@ int main(){
     airB.write(0);
     airUE.write(0);
     CHIJIKI.reset();
-    while(!CHIJIKI.check());
+    // while(!CHIJIKI.check());
     // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
     char buffer;    // 一文字
     int index;  // いま何もじめ？
     char cmd[128];  // コマンド文字列
     Upc.attach(input,SerialBase::RxIrq);
+    Upc.enable_input(false);
+    Upc.enable_output(false);
     state=1;
     printf("loop start!\n");
     while(true){
         sensor_reader();
         // debugger();
-        if(state==0){
-        }
+
         if(state==1){
             if(pc.read(&buffer,1)>0){   // PCから受信したら
+                led=!led;
                 if(buffer=='\n'){       // 改行だったら
                     cmd[index]='\0';    // \0 : 文字列の最後の意味
-                    // printf("cmd:%s\n",cmd);
+                    printf("cmd:%s\n",cmd);
                     switch(cmd[0]){
                     case 'v':
                         switch(cmd[1]){
@@ -178,6 +182,8 @@ int main(){
                         speed=kakuzai_speed;    // slow...
                         send('f');  // going
                         auto_running=true;  // allow auto run
+                        Upc.enable_input(true);
+                        Upc.enable_output(true);
                         auto_run();
                         break;
                     }
@@ -185,6 +191,7 @@ int main(){
                     index=0;
                 }else{
                     cmd[index]=buffer;
+                    printf("buffer:%c\n",buffer);
                     index++;
                 }
             }
@@ -209,8 +216,10 @@ int main(){
 }
 
 void input(){
-    pc.read(&Ubuffer,1);
-    if(state==2)received=true;
+    if(state==2&&Upc.readable()){
+        pc.read(&Ubuffer,1);
+        received=true;
+    }
 }
 
 void sender(char add,char dat){
@@ -369,7 +378,7 @@ void debugger(){
   2 |  2   |   0  |  false | 角材が来るまでまつ→前あげ→flag 0->1
   3 |  2   |   1  |  false | 角材を前が超えるのを待つ→前下げ、後ろ上げ→10s待つ（k,pコマンド受付→auto_run停止）
   4 |  2   |   2  |  false | 10s待ち終わった→後ろ下げ→初期化＆mainに戻す: state 2->0
-  5 |  1   | 2->0 |  true  | main loop
+  5 |  1   | 2->0 |  true  | main loop -> 1
 */
 void auto_run(void){
     if(auto_running){
@@ -379,7 +388,6 @@ void auto_run(void){
             bool finish = false;
             printf("state:2\n");
         }else if(state==2){
-
             sensor_reader();
             // debugger();
             if(dis[0] <= WOOD && flag == 0){
@@ -422,7 +430,6 @@ void auto_run(void){
             }else{
                 printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
             }
-
         }
     }
 }

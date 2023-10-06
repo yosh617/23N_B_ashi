@@ -197,22 +197,7 @@ int main(){
                 received=false;
             }
         }else if(state==2){
-            printf("state:2\n");
-            if(received){
-                received=false;
-                printf("received!!:%c\n",data[0]);
-                switch(data[0]){
-                    case 'p':
-                        send('s');
-                        state=1;
-                        break;
-                    case 'k':
-                        send('s');
-                        state=1;
-                        break;
-                }
-            }
-            if(state==2)auto_run();
+            auto_run();
         }
     }
 }
@@ -225,8 +210,11 @@ void input(){
         data[index]='\0';
         index=0;
         received=true;
-        if(data[index-2]=='p'){
+        if(data[0]=='p'){
             sig=1;
+        }else if(state==2){
+            send('s');
+            state=1;
         }
     }
 }

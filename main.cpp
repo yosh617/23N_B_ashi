@@ -30,7 +30,7 @@ DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 // エアシリンダーズ     0:伸ばす    1:縮む
 DigitalOut  airF(PA_13);    // 前輪
 DigitalOut  airB(PH_1);     // 後輪
-DigitalOut  airUE(PH_0);    // パタパタエア
+// DigitalOut  airUE(PH_0);    // パタパタエア
 DigitalOut ue_power(PC_8);  // 上電源確認君
 
 // 赤外線センサーズ
@@ -69,7 +69,7 @@ int main(){
     sig.write(1);
     airF.write(0);
     airB.write(0);
-    airUE.write(0);
+    // airUE.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
@@ -114,7 +114,7 @@ int main(){
                         sig.write(1);
                         airF.write(0);
                         airB.write(0);
-                        airUE.write(1);
+                        // airUE.write(1);
                         ue_power.write(0);
                         printf("pause!\n");
                         break;
@@ -123,7 +123,7 @@ int main(){
                         sig.write(0);
                         airF.write(0);
                         airB.write(0);
-                        airUE.write(0);
+                        // airUE.write(0);
                         ue_power.write(1);
                         printf("continue!\n");
                         break;

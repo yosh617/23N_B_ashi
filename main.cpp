@@ -18,11 +18,13 @@ int state=0;    // 0:準備中   1:main  2:auto_run
 bool auto_running=false;    // auto_run予備停止用
 int F(int s,int i); // 前進計算
 int B(int s,int i); // 後退計算
-BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
-UnbufferedSerial Upc(USBTX,USBRX);  // PCとのUnbuffered Serial (state==2)
+// BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
+UnbufferedSerial pc(USBTX,USBRX);  // PCとのUnbuffered Serial
 void input(void);   // attach用
 bool received=false;    // Unbuffered data received
-char Ubuffer;   // Unbuffered buffer data
+int index;  // いま何もじめ？
+char buffer;    // 1文字
+char data[128];  // コマンド文字列
 I2C motor(PB_9,PB_8);   // MDとのI2C
 // AnalogOut led(LED1);   // led
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
@@ -30,7 +32,7 @@ DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 // エアシリンダーズ     0:伸ばす    1:縮む
 DigitalOut  airF(PA_13);    // 前輪
 DigitalOut  airB(PH_1);     // 後輪
-// DigitalOut  airUE(PH_0);    // パタパタエア
+DigitalOut  airUE(PH_0);    // パタパタエア
 DigitalOut ue_power(PC_8);  // 上電源確認君
 
 // 赤外線センサーズ
@@ -69,18 +71,11 @@ int main(){
     sig.write(1);
     airF.write(0);
     airB.write(0);
-    // airUE.write(0);
+    airUE.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
-    char buffer;    // 一文字
-    int index;  // いま何もじめ？
-    char cmd[128];  // コマンド文字列
-    Upc.attach(input,SerialBase::RxIrq);
-    // Upc.enable_input(false);
-    // Upc.enable_output(false);
-    // pc.enable_input(true);
-    // pc.enable_output(true);
+    pc.attach(input,SerialBase::RxIrq);
     state=1;
     printf("loop start!\n");
     while(true){
@@ -88,120 +83,125 @@ int main(){
         // debugger();
 
         if(state==1){
-            if(pc.read(&buffer,1)>0){   // PCから受信したら
+            // if(pc.read(&buffer,1)>0){   // PCから受信したら
                 // led=!led;
-                if(buffer=='\n'){       // 改行だったら
-                    cmd[index]='\0';    // \0 : 文字列の最後の意味
-                    printf("cmd:%s\n",cmd);
-                    switch(cmd[0]){
-                    case 'v':
-                        switch(cmd[1]){
-                        case 'w':   //vw
-                            WOOD=atoi(&cmd[2]);
-                            printf("%d\n",WOOD);
-                            break;
-                        case 'k':   //vk
-                            kakuzai_speed=atoi(&cmd[2]);
-                            printf("%d\n",kakuzai_speed);
-                            break;
-                        }
+            if(received){
+                printf("cmd:%s\n",data);
+                switch(data[0]){
+                case 'v':
+                    switch(data[1]){
+                    case 'w':   //vw
+                        WOOD=atoi(&data[2]);
+                        printf("WOOD:%d\n",WOOD);
                         break;
-                    case 'd':   //d
-                        debugger();
+                    case 'k':   //vk
+                        kakuzai_speed=atoi(&data[2]);
+                        printf("kakuzai_speed%d\n",kakuzai_speed);
                         break;
-                    case 'p':   //p
-                        send('s');
-                        sig.write(1);
-                        airF.write(0);
-                        airB.write(0);
-                        // airUE.write(1);
-                        ue_power.write(0);
-                        printf("pause!\n");
+                    case 's':
+                        speed=atoi(&data[2]);
+                        printf("speed:%d\n",speed);
+                    default:
+                        printf("+-----------------------------\n");
+                        printf("| WOOD            (w):%d\n",WOOD);
+                        printf("| kakuzai_speed   (k):%d\n",kakuzai_speed);
+                        printf("| speed           (s):%d\n",speed);
+                        printf("+-----------------------------\n");
                         break;
-                    case 'c':   //c
-                        send('s');
-                        sig.write(0);
-                        airF.write(0);
-                        airB.write(0);
-                        // airUE.write(0);
-                        ue_power.write(1);
-                        printf("continue!\n");
-                        break;
-                    case 'a':   // 足回り
-                        speed=atoi(&cmd[2]);
-                        //printf("a:%c\n",cmd[1]);
-                        switch(cmd[1]){
-                        case 'a':
-                            switch(cmd[2]){
-                            case 'f':
-                                switch(cmd[3]){
-                                case 'u':
-                                    airF.write(1);  // aafu
-                                    break;
-                                case 'd':
-                                    airF.write(0);  //aafd
-                                    break;
-                                }
+                    }
+                    break;
+                case 'd':   //d
+                    debugger();
+                    break;
+                case 'p':   //p
+                    send('s');
+                    sig.write(1);
+                    airF.write(0);
+                    airB.write(0);
+                    airUE.write(1);
+                    ue_power.write(0);
+                    printf("pause!\n");
+                    break;
+                case 'c':   //c
+                    send('s');
+                    sig.write(0);
+                    airF.write(0);
+                    airB.write(0);
+                    airUE.write(0);
+                    ue_power.write(1);
+                    printf("continue!\n");
+                    break;
+                case 'a':   // 足回り
+                    speed=atoi(&data[2]);
+                    //printf("a:%c\n",data[1]);
+                    switch(data[1]){
+                    case 'a':
+                        switch(data[2]){
+                        case 'f':
+                            switch(data[3]){
+                            case 'u':
+                                airF.write(1);  // aafu
                                 break;
-                            case 'b':
-                                switch(cmd[3]){
-                                case 'u':
-                                    airB.write(1);  //aabu
-                                    break;
-                                case 'd':
-                                    airB.write(0);  //aabd
-                                    break;
-                                }
+                            case 'd':
+                                airF.write(0);  //aafd
                                 break;
                             }
                             break;
-                        default:    // それ以外
-                            //printf("cmd:%c\n",cmd[1]);
-                            send(cmd[1]);   //  a + f,b,r,l,s
+                        case 'b':
+                            switch(data[3]){
+                            case 'u':
+                                airB.write(1);  //aabu
+                                break;
+                            case 'd':
+                                airB.write(0);  //aabd
+                                break;
+                            }
                             break;
                         }
                         break;
-                    case 's':   // 旋回
-                        switch(cmd[1]){
-                        case 'r':
-                            speed=atoi(&cmd[2]);
-                            send('m');
-                            break;
-                        case 'l':
-                            speed=atoi(&cmd[2]);
-                            send('h');
-                            break;
-                        case 's':
-                            speed=atoi(&cmd[2]);
-                            send('s');
-                            break;
-                        }
-                        break;
-                    case 'k':
-                        airF.write(0);  // age
-                        airB.write(0);  // age
-                        printf("kakuzai k\n");
-                        speed=kakuzai_speed;    // slow...
-                        send('f');  // going
-                        auto_running=true;  // allow auto run
-                        // Upc.enable_input(true);
-                        // Upc.enable_output(true);
-                        auto_run();
+                    default:    // それ以外
+                        //printf("data:%c\n",data[1]);
+                        send(data[1]);   //  a + f,b,r,l,s
                         break;
                     }
-                    char cmd[128]="";
-                    index=0;
-                }else{
-                    cmd[index]=buffer;
-                    printf("buffer:%c\n",buffer);
-                    index++;
+                    break;
+                case 's':   // 旋回
+                    switch(data[1]){
+                    case 'r':
+                        speed=atoi(&data[2]);
+                        send('m');
+                        break;
+                    case 'l':
+                        speed=atoi(&data[2]);
+                        send('h');
+                        break;
+                    case 's':
+                        speed=atoi(&data[2]);
+                        send('s');
+                        break;
+                    }
+                    break;
+                case 'k':
+                    airF.write(0);  // age
+                    airB.write(0);  // age
+                    printf("kakuzai k\n");
+                    speed=kakuzai_speed;    // slow...
+                    send('f');  // going
+                    auto_running=true;  // allow auto run
+                    // Upc.enable_input(true);
+                    // Upc.enable_output(true);
+                    auto_run();
+                    break;
                 }
+                char data[128]="";
+                received=false;
             }
         }else if(state==2){
+            printf("state:2\n");
             if(received){
                 received=false;
-                printf("received!!:%c\n",Ubuffer);
-                switch(Ubuffer){
+                printf("received!!:%c\n",data[0]);
+                switch(data[0]){
                     case 'p':
                         send('s');
                         state=1;
@@ -212,15 +212,22 @@ int main(){
                         break;
                 }
             }
-            auto_run();
+            if(state==2)auto_run();
         }
     }
 }
 
 void input(){
-    if(state==2&&Upc.readable()){
-        pc.read(&Ubuffer,1);
+    pc.read(&buffer,1);
+    data[index]=buffer;
+    index++;
+    if(data[index-1]=='\n'){
+        data[index]='\0';
+        index=0;
         received=true;
+        if(data[index-2]=='p'){
+            sig=1;
+        }
     }
 }
 
@@ -232,7 +239,7 @@ void sender(char add,char dat){
     // //printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
-    wait_us(100);
+    wait_us(32);
 }
 
 void send(char d){
@@ -409,7 +416,7 @@ void auto_run(void){
                 for(int i = 0; i < 20; i++){
                     if(received){
                        received=false;
-                       if(Ubuffer=='k' || Ubuffer=='p'){
+                       if(buffer=='k' || buffer=='p'){
                            printf("stop kakuzai!\n");
                            finish=true;
                            break;
@@ -430,7 +437,7 @@ void auto_run(void){
                 printf("state:1 switched\n");
                 }
             }else{
-                printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
+                // printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
             }
         }
     }

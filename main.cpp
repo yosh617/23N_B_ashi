@@ -79,6 +79,8 @@ int main(){
     Upc.attach(input,SerialBase::RxIrq);
     Upc.enable_input(false);
     Upc.enable_output(false);
+    pc.enable_input(true);
+    pc.enable_output(true);
     state=1;
     printf("loop start!\n");
     while(true){

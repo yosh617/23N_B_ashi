@@ -15,7 +15,7 @@ const char BRK = 0x80;  // ブレーキ
 int senkai_speed=16;    // 旋回速度
 int state=0;    // 0:準備中   1:main  2:auto_run
 bool auto_running=false;    // auto_run予備停止用
-bool ap=false;
+int ap=0;
 int F(int s,int i); // 前進計算
 int B(int s,int i); // 後退計算
 // BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
@@ -77,9 +77,6 @@ int main(){
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     pc.attach(input,SerialBase::RxIrq);
-    pid.setInputLimits(0-180,360+180);
-    pid.setOutputLimits(-40,40);
-    pid.setSetPoint(goal);
     ticker_for_hosei.attach(function_for_hosei,100ms);
     state=1;
     printf("loop start!\n");
@@ -138,7 +135,6 @@ int main(){
                     case 'g':
                         goal=atof(&data[2]);
                         printf("goal:%f\n",goal);
-                        pid.setSetPoint(goal);
                         break;
                     case 'o':
                         Olim=atoi(&data[2]);
@@ -206,25 +202,43 @@ int main(){
                         ap=atoi(&data[2]);
                         printf("ap:%d\n",ap);
                         break;
+                    case 's':
+                        ap=1;
+                        break;
                     default:    // それ以外
                         //printf("data:%c\n",data[1]);
+                        ap=0;
                         send(data[1]);   //  a + f,b,r,l,s
                         break;
                     }
                     break;
                 case 's':   // 旋回
                     switch(data[1]){
-                    case 'r':
-                        speed=atoi(&data[2]);
-                        send('m');
-                        break;
-                    case 'l':
-                        speed=atoi(&data[2]);
-                        send('h');
-                        break;
+                    // case 'r':
+                    //     speed=atoi(&data[2]);
+                    //     send('m');
+                    //     break;
+                    // case 'l':
+                    //     speed=atoi(&data[2]);
+                    //     send('h');
+                    //     break;
                     case 's':
                         speed=atoi(&data[2]);
                         send('s');
+                        break;
+                    case 'h':
+                        switch(data[2]){
+                        case 'r':
+                            goal+=90;
+                            if(goal==360)goal=0;
+                            ap=1;
+                            break;
+                        case 'l':
+                            goal-=90;
+                            if(goal==-360)goal=0;
+                            ap=1;
+                            break;
+                        }
                         break;
                     }
                     break;
@@ -233,6 +247,7 @@ int main(){
                     airB.write(0);  // age
                     printf("kakuzai k\n");
                     speed=kakuzai_slow_speed;    // slow...
+                    ap=0;
                     send('f');  // going
                     auto_running=true;  // allow auto run
                     break;
@@ -240,7 +255,7 @@ int main(){
                 char data[128]="";
             
             }
-            if(ap){
+            if(ap==1){
                 // printf("pid:%d\n",pid_hosei);
                 for(int i=0;i<4;i++){
                     sender(MD[i],BRK+chijiki_hosei[i]);
@@ -376,8 +391,13 @@ void sensor_reader(){
     CHIJIKI.setmode(OPERATION_MODE_IMUPLUS);   //魔法
     CHIJIKI.get_angles();
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
-    if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
-    else CHIJIKI_=raw_CHIJIKI_;
+    CHIJIKI_=raw_CHIJIKI_-goal;
+    while (CHIJIKI_ < -180) {
+        CHIJIKI_ += 360;
+    }
+    while (CHIJIKI_ > 180) {
+        CHIJIKI_ -= 360;
+    }
 }
 
 void debugger(){

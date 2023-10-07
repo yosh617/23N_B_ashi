@@ -1,12 +1,10 @@
-#include "BufferedSerial.h"
-#include "SerialBase.h"
 #include "UnbufferedSerial.h"
 #include "mbed.h"
 #include "BNO055.h"
-
+#include "PIDcontroller.h"
 const int MD[4]={0x26,0x54,0x56,0x50};  // MDアドレス   右前,左前,右後,左後
-int WOOD=100;   // [mm]
-int speed=20;   // 全体スピード
+int WOOD=150;   // [mm]
+int speed=40;   // 全体スピード
 int max_speed=0xf0; // 最大速度
 int min_speed=0x10; // 最低速度
 int hosei[4]={0};   // 個体値補正
@@ -29,6 +27,15 @@ I2C motor(PB_9,PB_8);   // MDとのI2C
 // AnalogOut led(LED1);   // led
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
+//pid
+double p=0.1;    // 補正用 pゲイン
+double i=0.001;
+double d=0.0;
+PID pid(p,i,d,0.050);
+void function_for_hosei(void);  // 補正
+int chijiki_hosei[4]={0};   // 補正結果
+int pid_hosei=0;
+Ticker ticker_for_hosei;    // Ticker
 // エアシリンダーズ     0:伸ばす    1:縮む
 DigitalOut  airF(PA_13);    // 前輪
 DigitalOut  airB(PH_1);     // 後輪
@@ -54,15 +61,12 @@ bool finish = false;    // 角材終了判定
 void sender(char add,char dat); // モーター動かす
 void sensor_reader(void);   // センサー読む
 void auto_run(void);    // 角材
-float compute_dig(float d1,float d2);   // 角度の差を計算する
+// float compute_dig(float d1,float d2);   // 角度の差を計算する
 void debugger(void);    // 確認用関数
+void show(void);    // 変数確認
 void send(char d);  // 動き         direction fbrls
-void This_is_function_for_hosei(void);  // 補正
-long double p=1;    // 補正用 pゲイン
-int chijiki_hosei[4]={0};   // 補正結果
-Ticker This_is_ticker_for_hosei;    // Ticker
-int F(int speed,int i){return BRK+speed+hosei[i];};    //+chijiki_hosei[i];};    // 前進計算
-int B(int speed,int i){return BRK-speed-hosei[i];};    //-chijiki_hosei[i];};    // 後退計算
+int F(int speed,int i){return BRK+speed+hosei[i]+chijiki_hosei[i];};    // 前進計算
+int B(int speed,int i){return BRK-speed-hosei[i]-chijiki_hosei[i];};    // 後退計算
 
 // main関数
 int main(){
@@ -74,8 +78,11 @@ int main(){
     airUE.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
-    // This_is_ticker_for_hosei.attach(This_is_function_for_hosei,50ms);
-    pc.attach(input,SerialBase::RxIrq);
+    pc.attach(input,UnbufferedSerial::RxIrq);
+    pid.setInputLimits(-180.0,180.0);
+    pid.setOutputLimits(-20, 20);
+    pid.setSetPoint(0);
+    ticker_for_hosei.attach(function_for_hosei,50ms);
     state=1;
     printf("loop start!\n");
     while(true){
@@ -89,6 +96,7 @@ int main(){
             // if(pc.read(&buffer,1)>0){   // PCから受信したら
                 // led=!led;
             if(received){
+                received=false;
                 // printf("cmd:%s\n",data);
                 switch(data[0]){
                 case 'v':
@@ -105,11 +113,7 @@ int main(){
                         speed=atoi(&data[2]);
                         printf("speed:%d\n",speed);
                     default:
-                        printf("+-----------------------------\n");
-                        printf("| WOOD            (w):%d\n",WOOD);
-                        printf("| kakuzai_speed   (k):%d\n",kakuzai_speed);
-                        printf("| speed           (s):%d\n",speed);
-                        printf("+-----------------------------\n");
+                        show();
                         break;
                     }
                     break;
@@ -191,13 +195,9 @@ int main(){
                     speed=kakuzai_speed;    // slow...
                     send('f');  // going
                     auto_running=true;  // allow auto run
-                    // Upc.enable_input(true);
-                    // Upc.enable_output(true);
-                    auto_run();
                     break;
                 }
                 char data[128]="";
-                received=false;
             }
         }else if(state==2){
             auto_run();
@@ -215,8 +215,10 @@ void input(){
         received=true;
         if(data[0]=='p'){
             sig=1;
-        }else if(state==2){
-            if(data[0]=='p' or data[0]=='k'){
+        }
+        if(state==2){
+            if(data[0]=='p' ){//or data[0]=='k'){
+                sig=1;
                 state=0;
             }
         }
@@ -296,35 +298,17 @@ void send(char d){
     }
 }
 
-void This_is_function_for_hosei(){
+void function_for_hosei(){
     // sensor_reader();
-    float now = goal-CHIJIKI_;
-    float h=now*p;
-    if(h<0)h*=-1;
-    if(0<now){  //左向き過ぎてる
-        chijiki_hosei[0]=0;
-        chijiki_hosei[1]=h;
-        chijiki_hosei[2]=0;
-        chijiki_hosei[3]=h;
-    }else{      //右向きすぎてる
-        chijiki_hosei[0]=h;
-        chijiki_hosei[1]=0;
-        chijiki_hosei[2]=h;
-        chijiki_hosei[3]=0;        
-    }
+    pid.setProcessValue(CHIJIKI_);
+    pid_hosei= pid.compute();
+    chijiki_hosei[0]=pid_hosei;
+    chijiki_hosei[1]=-pid_hosei;
+    chijiki_hosei[2]=pid_hosei;
+    chijiki_hosei[3]=-pid_hosei;
 }
 
-float compute_dig(float d1,float d2){
-    float d=d1-d2;
-    while(d<-180){
-        d+=360;
-    }
-    while(d>180){
-        d-=360;
-    }
-    // //printf("dig: %f\n",abs(d));
-    return abs(d);
-}
+
 
 void sensor_reader(){
     // 赤外線センサーを読む
@@ -336,38 +320,22 @@ void sensor_reader(){
     dis[1] = 71.463 * pow(value[1],-1.084);
 
     // 地磁気の相対角（初期位置からの）を取得
-    CHIJIKI.setmode(OPERATION_MODE_NDOF);   //魔法
+    CHIJIKI.setmode(OPERATION_MODE_IMUPLUS);   //魔法
     CHIJIKI.get_angles();
     old_CHIJIKI=CHIJIKI_;   //入れ替え
     if(old_CHIJIKI<0)raw_old_CHIJIKI=old_CHIJIKI-360;   //元の形に戻す 0~360
     else raw_old_CHIJIKI=old_CHIJIKI;
-    // raw_CHIJIKI_=CHIJIKI.euler.yaw+warp;     //取得  0~360
-    // if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
-    // else CHIJIKI_=raw_CHIJIKI_;
-    CHIJIKI.getEulerFromQ(yaw_Q);
-    yaw_Q*=-1;
-    CHIJIKI_=yaw_Q;
-    // 飛びすぎてたら...
-    if(compute_dig(raw_old_CHIJIKI, yaw_Q)>max_warp){
-        //printf("warping!!\n");
-        warp=-raw_old_CHIJIKI;
-        // CHIJIKI.reset();
-    
-    }
+    raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
+    if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
+    else CHIJIKI_=raw_CHIJIKI_;
 }
 
 void debugger(){
     printf("+-----------------------------\n");
     printf("| sig             :   %d\n",sig.read());
     printf("| CHIJIKI_        :   %f\n",CHIJIKI_);
-    printf("| CHIJIKI_Q       :   %f\n",yaw_Q);
     printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
-    printf("+-----------------------------\n");
-    printf("+-----------------------------\n");
-    printf("| WOOD            (w):%d\n",WOOD);
-    printf("| kakuzai_speed   (k):%d\n",kakuzai_speed);
-    printf("| speed           (s):%d\n",speed);
     printf("+-----------------------------\n");
     // printf("| motor           :   MM HM MU HU\n");
     // printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
@@ -376,6 +344,17 @@ void debugger(){
     // printf("+------------------------------------\n");
 }
 
+void show(){
+    printf("+-----------------------------\n");
+    printf("| WOOD            (w):%d\n",WOOD);
+    printf("| kakuzai_speed   (k):%d\n",kakuzai_speed);
+    printf("| speed           (s):%d\n",speed);
+    printf("| p               (p):%f\n",p);
+    printf("| i               (i):%f\n",i);
+    printf("| d               (d):%f\n",d);
+    printf("| pid_hosei       (X):%d\n",chijiki_hosei);
+    printf("+-----------------------------\n");
+}
 
 /*
    \|state | flag | finish | action
@@ -429,12 +408,12 @@ void auto_run(void){
                     printf("finished\n");
                     finish = false;
                     flag = 0;
-                state=1;
+                state=0;
                 send('s');
                 printf("state:1 switched\n");
                 }
             }else{
-                // printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
+                printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
             }
         }
     }

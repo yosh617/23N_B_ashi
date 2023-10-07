@@ -9,11 +9,13 @@ int max_speed=0xf0; // 最大速度
 int min_speed=0x10; // 最低速度
 int hosei[4]={0};   // 個体値補正
 int duty[4]={0};    // 最終的なduty
-int kakuzai_speed=20;   // 角材超えるときのスピード
+int kakuzai_fast_speed=40;   // 角材超えるときのスピード
+int kakuzai_slow_speed=30;
 const char BRK = 0x80;  // ブレーキ
 int senkai_speed=16;    // 旋回速度
 int state=0;    // 0:準備中   1:main  2:auto_run
 bool auto_running=false;    // auto_run予備停止用
+bool ap=false;
 int F(int s,int i); // 前進計算
 int B(int s,int i); // 後退計算
 // BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
@@ -28,9 +30,10 @@ I2C motor(PB_9,PB_8);   // MDとのI2C
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
 //pid
-double p=1;    // 補正用 pゲイン
-double i=0;
-double d=0;
+double p=5;    // 補正用 pゲイン
+double i=0.01;
+double d=0.001;
+int Olim=30;
 PID pid(p,i,d,0.10);
 void function_for_hosei(void);  // 補正
 int chijiki_hosei[4]={0};   // 補正結果
@@ -74,15 +77,16 @@ int main(){
     CHIJIKI.reset();
     while(!CHIJIKI.check());
     pc.attach(input,SerialBase::RxIrq);
-    pid.setInputLimits(-180.0,180.0);
-    pid.setOutputLimits(0, 20.0);
-    pid.setSetPoint(30.0);
+    pid.setInputLimits(0-180,360+180);
+    pid.setOutputLimits(-40,40);
+    pid.setSetPoint(goal);
     ticker_for_hosei.attach(function_for_hosei,100ms);
     state=1;
     printf("loop start!\n");
     while(true){
         sensor_reader();
         // debugger();
+        // printf("%d\n",pid_hosei);
         if(state==0){
             send('s');
             state=1;
@@ -96,13 +100,21 @@ int main(){
                 switch(data[0]){
                 case 'v':
                     switch(data[1]){
-                    case 'w':   //vw
-                        WOOD=atoi(&data[2]);
-                        printf("WOOD:%d\n",WOOD);
-                        break;
                     case 'k':   //vk
-                        kakuzai_speed=atoi(&data[2]);
-                        printf("kakuzai_speed%d\n",kakuzai_speed);
+                        switch(data[2]){
+                        case 'w':   //vw
+                            WOOD=atoi(&data[2]);
+                            printf("WOOD:%d\n",WOOD);
+                            break;
+                        case 's':
+                            kakuzai_slow_speed=atoi(&data[2]);
+                            printf("kakuzai_slow_speed%d\n",kakuzai_slow_speed);
+                            break;
+                        case 'f':
+                            kakuzai_fast_speed=atoi(&data[2]);
+                            printf("kakuzai_fast_speed%d\n",kakuzai_fast_speed);
+                            break;
+                        }
                         break;
                     case 's':
                         speed=atoi(&data[2]);
@@ -128,12 +140,20 @@ int main(){
                         printf("goal:%f\n",goal);
                         pid.setSetPoint(goal);
                         break;
+                    case 'o':
+                        Olim=atoi(&data[2]);
+                        pid.setOutputLimits(0,Olim);
+                        break;
                     default:
                         show();
                         break;
                     }
                     break;
                 case 'd':   //d
+                    if(data[1]=='d'){
+                        printf("%d",pid_hosei);
+                        continue;
+                    }
                     debugger();
                     break;
                 case 'p':   //p
@@ -182,6 +202,10 @@ int main(){
                             break;
                         }
                         break;
+                    case 'p':
+                        ap=atoi(&data[2]);
+                        printf("ap:%d\n",ap);
+                        break;
                     default:    // それ以外
                         //printf("data:%c\n",data[1]);
                         send(data[1]);   //  a + f,b,r,l,s
@@ -208,12 +232,19 @@ int main(){
                     airF.write(0);  // age
                     airB.write(0);  // age
                     printf("kakuzai k\n");
-                    speed=kakuzai_speed;    // slow...
+                    speed=kakuzai_slow_speed;    // slow...
                     send('f');  // going
                     auto_running=true;  // allow auto run
                     break;
                 }
                 char data[128]="";
+            
+            }
+            if(ap){
+                // printf("pid:%d\n",pid_hosei);
+                for(int i=0;i<4;i++){
+                    sender(MD[i],BRK+chijiki_hosei[i]);
+                }
             }
         }else if(state==2){
             auto_run();
@@ -316,9 +347,14 @@ void send(char d){
 
 void function_for_hosei(){
     // sensor_reader();
-    pid.setProcessValue(CHIJIKI_);
+    float now=CHIJIKI_;
+    float error=goal-now;
+    pid.setSetPoint(0);
+    pid.setInputLimits(-180,0);
+    pid.setOutputLimits(0,Olim);
+    pid.setProcessValue(-abs(now));
     pid_hosei= pid.compute();
-    if(CHIJIKI_>goal)pid_hosei*=-1;
+    if(error>0)pid_hosei*=-1;
     chijiki_hosei[0]=pid_hosei;
     chijiki_hosei[1]=-pid_hosei;
     chijiki_hosei[2]=pid_hosei;
@@ -348,6 +384,7 @@ void debugger(){
     printf("+-----------------------------\n");
     printf("| sig             :   %d\n",sig.read());
     printf("| CHIJIKI_        :   %f\n",CHIJIKI_);
+    printf("| raw_CHIJIKI_    :   %f\n",raw_CHIJIKI_);
     printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
     printf("+-----------------------------\n");
@@ -361,14 +398,16 @@ void debugger(){
 
 void show(){
     printf("+-----------------------------\n");
-    printf("| WOOD            (w):%d\n",WOOD);
-    printf("| kakuzai_speed   (k):%d\n",kakuzai_speed);
-    printf("| speed           (s):%d\n",speed);
-    printf("| p               (p):%f\n",p);
-    printf("| i               (i):%f\n",i);
-    printf("| d               (d):%f\n",d);
-    printf("| pid_hosei       (X):%d\n",pid_hosei);
-    printf("| goal            (g):%f\n",goal);
+    printf("| WOOD              (kw):%d\n",WOOD);
+    printf("| kakuzai_slow_speed(ks):%d\n",kakuzai_slow_speed);
+    printf("| kakuza_fast_speed (kf):%d\n",kakuzai_fast_speed);
+    printf("| speed             (s) :%d\n",speed);
+    printf("| p                 (p) :%f\n",p);
+    printf("| i                 (i) :%f\n",i);
+    printf("| d                 (d) :%f\n",d);
+    printf("| pid_hosei         (X) :%d\n",pid_hosei);
+    printf("| goal              (g) :%f\n",goal);
+    printf("| Olim              (o) :%d\n",Olim);
     printf("+-----------------------------\n");
 }
 

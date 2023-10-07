@@ -28,10 +28,10 @@ I2C motor(PB_9,PB_8);   // MDとのI2C
 DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 
 //pid
-double p=0.1;    // 補正用 pゲイン
-double i=0.001;
-double d=0.0;
-PID pid(p,i,d,0.050);
+double p=1;    // 補正用 pゲイン
+double i=0;
+double d=0;
+PID pid(p,i,d,0.10);
 void function_for_hosei(void);  // 補正
 int chijiki_hosei[4]={0};   // 補正結果
 int pid_hosei=0;
@@ -49,13 +49,8 @@ float value[2]; // 生の値
 double dis[2]={};   // 計算後の値
 BNO055 CHIJIKI(PB_3,PB_10); // ちじき        SDA SCL
 float CHIJIKI_=0;   // 地磁気の値 -180~0~180
-float old_CHIJIKI=0;    // 前回の地磁気の値
 float raw_CHIJIKI_=0;   // 生のデータ   0~360
-float raw_old_CHIJIKI=0;    // 生のデータ   0~360
-float max_warp=75;  // 許される瞬間の地磁気の変化量
-int warp=0; // 地磁気の飛び
-double yaw_Q=0; // 地磁気のすごいやつ！
-int goal=0; // 目標値
+double goal=0; // 目標値
 int flag = 0;   // 角材用フラグ
 bool finish = false;    // 角材終了判定
 void sender(char add,char dat); // モーター動かす
@@ -78,11 +73,11 @@ int main(){
     airUE.write(0);
     CHIJIKI.reset();
     while(!CHIJIKI.check());
-    pc.attach(input,UnbufferedSerial::RxIrq);
+    pc.attach(input,SerialBase::RxIrq);
     pid.setInputLimits(-180.0,180.0);
-    pid.setOutputLimits(-20, 20);
-    pid.setSetPoint(0);
-    ticker_for_hosei.attach(function_for_hosei,50ms);
+    pid.setOutputLimits(0, 20.0);
+    pid.setSetPoint(30.0);
+    ticker_for_hosei.attach(function_for_hosei,100ms);
     state=1;
     printf("loop start!\n");
     while(true){
@@ -112,6 +107,27 @@ int main(){
                     case 's':
                         speed=atoi(&data[2]);
                         printf("speed:%d\n",speed);
+                        break;
+                    case 'p':
+                        p=atof(&data[2]);
+                        printf("p:%f\n",p);
+                        pid.setGain(p,i,d);
+                        break;
+                    case 'i':
+                        i=atof(&data[2]);
+                        printf("i:%f\n",i);
+                        pid.setGain(p,i,d);
+                        break;
+                     case 'd':
+                        d=atof(&data[2]);
+                        printf("d:%f\n",d);
+                        pid.setGain(p,i,d);
+                        break;
+                    case 'g':
+                        goal=atof(&data[2]);
+                        printf("goal:%f\n",goal);
+                        pid.setSetPoint(goal);
+                        break;
                     default:
                         show();
                         break;
@@ -302,6 +318,7 @@ void function_for_hosei(){
     // sensor_reader();
     pid.setProcessValue(CHIJIKI_);
     pid_hosei= pid.compute();
+    if(CHIJIKI_>goal)pid_hosei*=-1;
     chijiki_hosei[0]=pid_hosei;
     chijiki_hosei[1]=-pid_hosei;
     chijiki_hosei[2]=pid_hosei;
@@ -322,9 +339,6 @@ void sensor_reader(){
     // 地磁気の相対角（初期位置からの）を取得
     CHIJIKI.setmode(OPERATION_MODE_IMUPLUS);   //魔法
     CHIJIKI.get_angles();
-    old_CHIJIKI=CHIJIKI_;   //入れ替え
-    if(old_CHIJIKI<0)raw_old_CHIJIKI=old_CHIJIKI-360;   //元の形に戻す 0~360
-    else raw_old_CHIJIKI=old_CHIJIKI;
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
     if(180<raw_CHIJIKI_ && raw_CHIJIKI_<360)CHIJIKI_=raw_CHIJIKI_-360;  //-180~180に変換
     else CHIJIKI_=raw_CHIJIKI_;
@@ -337,6 +351,7 @@ void debugger(){
     printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
     printf("+-----------------------------\n");
+    show();
     // printf("| motor           :   MM HM MU HU\n");
     // printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
     // printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
@@ -352,7 +367,8 @@ void show(){
     printf("| p               (p):%f\n",p);
     printf("| i               (i):%f\n",i);
     printf("| d               (d):%f\n",d);
-    printf("| pid_hosei       (X):%d\n",chijiki_hosei);
+    printf("| pid_hosei       (X):%d\n",pid_hosei);
+    printf("| goal            (g):%f\n",goal);
     printf("+-----------------------------\n");
 }
 
@@ -389,7 +405,7 @@ void auto_run(void){
                 printf("air change\n");
                 airB.write(1);
                 char buffer;
-                for(int i = 0; i < 20; i++){
+                for(int i = 0; i < 10; i++){
                     if(received){
                        received=false;
                        if(buffer=='k' || buffer=='p'){

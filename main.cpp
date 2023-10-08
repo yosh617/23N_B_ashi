@@ -9,13 +9,13 @@ int max_speed=0xf0; // 最大速度
 int min_speed=0x10; // 最低速度
 int hosei[4]={0};   // 個体値補正
 int duty[4]={0};    // 最終的なduty
+char di='s';
 int kakuzai_fast_speed=40;   // 角材超えるときのスピード
 int kakuzai_slow_speed=30;
 const char BRK = 0x80;  // ブレーキ
 int senkai_speed=16;    // 旋回速度
 int state=0;    // 0:準備中   1:main  2:auto_run
 bool auto_running=false;    // auto_run予備停止用
-int ap=0;
 int F(int s,int i); // 前進計算
 int B(int s,int i); // 後退計算
 // BufferedSerial pc(USBTX,USBRX); // PCとのシリアル(state==1)
@@ -210,19 +210,14 @@ int main(){
                             break;
                         }
                         break;
-                    case 'p':
-                        ap=atoi(&data[2]);
-                        printf("ap:%d\n",ap);
-                        break;
                     case 's':
                         Olim=Ofast;
-                        ap=1;
+                        di='s';
                         break;
                     default:    // それ以外
                         //printf("data:%c\n",data[1]);
-                        ap=2;
                         Olim=Oslow;
-                        send(data[1]);   //  a + f,b,r,l
+                        di=data[1];   //  a + f,b,r,l
                         break;
                     }
                     break;
@@ -237,20 +232,18 @@ int main(){
                     //     send('h');
                     //     break;
                     case 's':
-                        speed=atoi(&data[2]);
-                        send('s');
+                        Olim=Ofast;
+                        di='s';
                         break;
                     case 'h':
                         switch(data[2]){
                         case 'r':
                             goal+=90;
                             if(goal==360)goal=0;
-                            ap=1;
                             break;
                         case 'l':
                             goal-=90;
                             if(goal==-360)goal=0;
-                            ap=1;
                             break;
                         }
                         break;
@@ -261,19 +254,13 @@ int main(){
                     airB.write(0);  // age
                     printf("kakuzai k\n");
                     speed=kakuzai_slow_speed;    // slow...
-                    ap=2;
-                    send('f');  // going
+                    di='f';  // going
                     auto_running=true;  // allow auto run
                     break;
                 }
                 char data[128]="";
             }
-            if(ap==1){
-                // printf("pid:%d\n",pid_hosei);
-                for(int i=0;i<4;i++){
-                    sender(MD[i],BRK+chijiki_hosei[i]);
-                }
-            }
+            send(di);
         }else if(state==2){
             auto_run();
         }
@@ -443,7 +430,6 @@ void show(){
     printf("| Olim              (o) :%d\n",Olim);
     printf("| Oslow             (os):%d\n",Oslow);
     printf("| Ofast             (of):%d\n",Ofast);
-    printf("| ap                (ap):%d\n",ap);
     printf("| state                 :%d\n",state);
     // printf("| ")
     printf("+-----------------------------\n");

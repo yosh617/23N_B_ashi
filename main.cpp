@@ -33,7 +33,10 @@ DigitalOut sig(PA_12);  // 非常停止ボタン   0:動く  1:止まる
 double p=5;    // 補正用 pゲイン
 double i=0.01;
 double d=0.001;
-int Olim=30;
+int O=0;
+int Olim=40;
+int Ofast=40;
+int Oslow=20;
 PID pid(p,i,d,0.10);
 void function_for_hosei(void);  // 補正
 int chijiki_hosei[4]={0};   // 補正結果
@@ -75,6 +78,7 @@ int main(){
     airB.write(0);
     airUE.write(0);
     CHIJIKI.reset();
+    printf("CHIJIKI WAITING\n");
     while(!CHIJIKI.check());
     pc.attach(input,SerialBase::RxIrq);
     ticker_for_hosei.attach(function_for_hosei,100ms);
@@ -127,7 +131,7 @@ int main(){
                         printf("i:%f\n",i);
                         pid.setGain(p,i,d);
                         break;
-                     case 'd':
+                    case 'd':
                         d=atof(&data[2]);
                         printf("d:%f\n",d);
                         pid.setGain(p,i,d);
@@ -137,9 +141,17 @@ int main(){
                         printf("goal:%f\n",goal);
                         break;
                     case 'o':
-                        Olim=atoi(&data[2]);
-                        pid.setOutputLimits(0,Olim);
+                        O=atoi(&data[3]);
+                        switch(data[4]){
+                        case 'f':
+                            Ofast=O;
+                            break;
+                        case 's':
+                            Oslow=O;
+                            break;
+                        }
                         break;
+
                     default:
                         show();
                         break;
@@ -203,12 +215,14 @@ int main(){
                         printf("ap:%d\n",ap);
                         break;
                     case 's':
+                        Olim=Ofast;
                         ap=1;
                         break;
                     default:    // それ以外
                         //printf("data:%c\n",data[1]);
-                        ap=0;
-                        send(data[1]);   //  a + f,b,r,l,s
+                        ap=2;
+                        Olim=Oslow;
+                        send(data[1]);   //  a + f,b,r,l
                         break;
                     }
                     break;
@@ -247,13 +261,12 @@ int main(){
                     airB.write(0);  // age
                     printf("kakuzai k\n");
                     speed=kakuzai_slow_speed;    // slow...
-                    ap=0;
+                    ap=2;
                     send('f');  // going
                     auto_running=true;  // allow auto run
                     break;
                 }
                 char data[128]="";
-            
             }
             if(ap==1){
                 // printf("pid:%d\n",pid_hosei);
@@ -292,14 +305,14 @@ void sender(char add,char dat){
     motor.write(add);
     if(dat<min_speed)dat=min_speed;
     else if(max_speed<dat)dat=max_speed;
-    // //printf("dat: %d\n",dat);
+    // printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
     wait_us(32);
 }
 
 void send(char d){
-    //printf("switch:%c\n",d);
+    printf("switch:%c\n",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){
@@ -404,30 +417,35 @@ void debugger(){
     printf("+-----------------------------\n");
     printf("| sig             :   %d\n",sig.read());
     printf("| CHIJIKI_        :   %f\n",CHIJIKI_);
-    printf("| raw_CHIJIKI_    :   %f\n",raw_CHIJIKI_);
-    printf("| distance        :   %f , %f\n",dis[0],dis[1]);
+    // printf("| raw_CHIJIKI_    :   %f\n",raw_CHIJIKI_);
+    // printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
+    printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
     printf("+-----------------------------\n");
     show();
     // printf("| motor           :   MM HM MU HU\n");
     // printf("| hosei           :   %d %d %d %d\n",hosei[0],hosei[1],hosei[2],hosei[3]);
-    // printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
     // printf("| final duty      :   %d %d %d %d\n",duty[0],duty[1],duty[2],duty[3]);
     // printf("+------------------------------------\n");
 }
 
 void show(){
     printf("+-----------------------------\n");
-    printf("| WOOD              (kw):%d\n",WOOD);
-    printf("| kakuzai_slow_speed(ks):%d\n",kakuzai_slow_speed);
-    printf("| kakuza_fast_speed (kf):%d\n",kakuzai_fast_speed);
-    printf("| speed             (s) :%d\n",speed);
+    // printf("| WOOD              (kw):%d\n",WOOD);
+    // printf("| kakuzai_slow_speed(ks):%d\n",kakuzai_slow_speed);
+    // printf("| kakuza_fast_speed (kf):%d\n",kakuzai_fast_speed);
+    // printf("| speed             (s) :%d\n",speed);
     printf("| p                 (p) :%f\n",p);
     printf("| i                 (i) :%f\n",i);
     printf("| d                 (d) :%f\n",d);
     printf("| pid_hosei         (X) :%d\n",pid_hosei);
     printf("| goal              (g) :%f\n",goal);
     printf("| Olim              (o) :%d\n",Olim);
+    printf("| Oslow             (os):%d\n",Oslow);
+    printf("| Ofast             (of):%d\n",Ofast);
+    printf("| ap                (ap):%d\n",ap);
+    printf("| state                 :%d\n",state);
+    // printf("| ")
     printf("+-----------------------------\n");
 }
 

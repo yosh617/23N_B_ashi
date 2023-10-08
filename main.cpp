@@ -1,7 +1,10 @@
+
 #include "UnbufferedSerial.h"
 #include "mbed.h"
 #include "BNO055.h"
 #include "PIDcontroller.h"
+#include <cstdio>
+bool debug_log=false;
 const int MD[4]={0x26,0x54,0x56,0x50};  // MDアドレス   右前,左前,右後,左後
 int WOOD=150;   // [mm]
 int speed=40;   // 全体スピード
@@ -10,6 +13,7 @@ int min_speed=0x10; // 最低速度
 int hosei[4]={0};   // 個体値補正
 int duty[4]={0};    // 最終的なduty
 char di='s';
+char TEMP=di;
 int kakuzai_fast_speed=40;   // 角材超えるときのスピード
 int kakuzai_slow_speed=30;
 const char BRK = 0x80;  // ブレーキ
@@ -104,15 +108,15 @@ int main(){
                     case 'k':   //vk
                         switch(data[2]){
                         case 'w':   //vw
-                            WOOD=atoi(&data[2]);
+                            WOOD=atoi(&data[3]);
                             printf("WOOD:%d\n",WOOD);
                             break;
                         case 's':
-                            kakuzai_slow_speed=atoi(&data[2]);
+                            kakuzai_slow_speed=atoi(&data[3]);
                             printf("kakuzai_slow_speed%d\n",kakuzai_slow_speed);
                             break;
                         case 'f':
-                            kakuzai_fast_speed=atoi(&data[2]);
+                            kakuzai_fast_speed=atoi(&data[3]);
                             printf("kakuzai_fast_speed%d\n",kakuzai_fast_speed);
                             break;
                         }
@@ -141,8 +145,8 @@ int main(){
                         printf("goal:%f\n",goal);
                         break;
                     case 'o':
-                        O=atoi(&data[3]);
-                        switch(data[4]){
+                        O=atoi(&data[4]);
+                        switch(data[3]){
                         case 'f':
                             Ofast=O;
                             break;
@@ -151,7 +155,9 @@ int main(){
                             break;
                         }
                         break;
-
+                    case 'l':
+                        debug_log=!debug_log;
+                        break;
                     default:
                         show();
                         break;
@@ -213,6 +219,7 @@ int main(){
                     case 's':
                         Olim=Ofast;
                         di='s';
+                        send('s');
                         break;
                     default:    // それ以外
                         //printf("data:%c\n",data[1]);
@@ -234,8 +241,11 @@ int main(){
                     case 's':
                         Olim=Ofast;
                         di='s';
+                        send('s');
                         break;
                     case 'h':
+                        Olim=Oslow;
+                        di='s';
                         switch(data[2]){
                         case 'r':
                             goal+=90;
@@ -256,10 +266,13 @@ int main(){
                     speed=kakuzai_slow_speed;    // slow...
                     di='f';  // going
                     auto_running=true;  // allow auto run
+                    auto_run();
                     break;
                 }
                 char data[128]="";
             }
+            if(debug_log && TEMP!=di)printf("di:%c\n",di);
+            TEMP=di;
             send(di);
         }else if(state==2){
             auto_run();
@@ -277,6 +290,7 @@ void input(){
         received=true;
         if(data[0]=='p'){
             sig=1;
+            pc.write("!",1);
         }
         if(state==2){
             if(data[0]=='p' ){//or data[0]=='k'){
@@ -292,14 +306,12 @@ void sender(char add,char dat){
     motor.write(add);
     if(dat<min_speed)dat=min_speed;
     else if(max_speed<dat)dat=max_speed;
-    // printf("dat: %d\n",dat);
+    if(debug_log&&dat!=128)printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
-    wait_us(32);
 }
 
 void send(char d){
-    printf("switch:%c\n",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){
@@ -349,15 +361,16 @@ void send(char d){
         break;
     case 's':
         for(int i=0;i<4;i++){
-            sender(MD[i],BRK);
+            sender(MD[i],BRK+chijiki_hosei[i]);
         }
         break;
     default:
         for(int i=0;i<4;i++){
-            sender(MD[i],BRK);
+            sender(MD[i],BRK+chijiki_hosei[i]);
         }
         break;
     }
+    wait_us(10000);
 }
 
 void function_for_hosei(){
@@ -405,9 +418,10 @@ void debugger(){
     printf("| sig             :   %d\n",sig.read());
     printf("| CHIJIKI_        :   %f\n",CHIJIKI_);
     // printf("| raw_CHIJIKI_    :   %f\n",raw_CHIJIKI_);
-    // printf("| distance        :   %f , %f\n",dis[0],dis[1]);
+    printf("| distance        :   %f , %f\n",dis[0],dis[1]);
     printf("| speed           :   %d\n",speed);
     printf("| CJK hosei       :   %d %d %d %d\n",chijiki_hosei[0],chijiki_hosei[1],chijiki_hosei[2],chijiki_hosei[3]);
+    printf("| direct          :   %c\n",di);
     printf("+-----------------------------\n");
     show();
     // printf("| motor           :   MM HM MU HU\n");
@@ -418,9 +432,9 @@ void debugger(){
 
 void show(){
     printf("+-----------------------------\n");
-    // printf("| WOOD              (kw):%d\n",WOOD);
-    // printf("| kakuzai_slow_speed(ks):%d\n",kakuzai_slow_speed);
-    // printf("| kakuza_fast_speed (kf):%d\n",kakuzai_fast_speed);
+    printf("| WOOD              (kw):%d\n",WOOD);
+    printf("| kakuzai_slow_speed(ks):%d\n",kakuzai_slow_speed);
+    printf("| kakuza_fast_speed (kf):%d\n",kakuzai_fast_speed);
     // printf("| speed             (s) :%d\n",speed);
     printf("| p                 (p) :%f\n",p);
     printf("| i                 (i) :%f\n",i);
@@ -488,7 +502,7 @@ void auto_run(void){
                     finish = false;
                     flag = 0;
                 state=0;
-                send('s');
+                di='s';
                 printf("state:1 switched\n");
                 }
             }else{

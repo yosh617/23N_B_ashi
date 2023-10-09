@@ -275,7 +275,17 @@ int main(){
             TEMP=di;
             send(di);
         }else if(state==2){
-            auto_run();
+            if(received){
+                received=false;
+                if(data[0]=='p'){
+                    printf("emergency stop\n");
+                    state=0;
+                }
+            }
+            if(state==2){
+                send('f');
+                auto_run();
+            }
         }
     }
 }
@@ -290,7 +300,7 @@ void input(){
         received=true;
         if(data[0]=='p'){
             sig=1;
-            pc.write("!",1);
+            pc.write("!\n",1);
         }
         if(state==2){
             if(data[0]=='p' ){//or data[0]=='k'){
@@ -309,6 +319,7 @@ void sender(char add,char dat){
     if(debug_log&&dat!=128)printf("dat: %d\n",dat);
     motor.write(dat);
     motor.stop();
+    wait_us(100);
 }
 
 void send(char d){
@@ -462,9 +473,10 @@ void auto_run(void){
     if(auto_running){
         if(state==1){
             state=2;
-            int flag = 0;
+            flag = 0;
             bool finish = false;
             printf("state:2\n");
+            speed=kakuzai_slow_speed;
         }else if(state==2){
             sensor_reader();
             // debugger();
@@ -473,6 +485,7 @@ void auto_run(void){
                 flag=1;
                 printf("----------mae!----------\n");
                 printf("dis0:%f\n",dis[0]);
+                speed=kakuzai_fast_speed;
             }else if(dis[1] <= WOOD && flag == 1){
                 flag=2;
                 printf("----------go!----------\n");
@@ -494,19 +507,21 @@ void auto_run(void){
                     printf("sleep\n");
                     ThisThread::sleep_for(100ms);
                 }
-                printf("fin\n");
-                auto_running=false;
+                printf("--fin--\n");
+                printf("test\n");
                 airB.write(0);
                 if(finish){
                     printf("finished\n");
                     finish = false;
                     flag = 0;
+                }
+                printf("state:0 switched\n");
+                auto_running=false;
                 state=0;
                 di='s';
-                printf("state:1 switched\n");
-                }
-            }else{
-                printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
+                send('s');
+            // }else{
+                // printf("flag:%d     dis0:%f     dis1:%f\n",flag,dis[0],dis[1]);
             }
         }
     }

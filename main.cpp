@@ -394,10 +394,10 @@ void function_for_hosei(){
     pid.setProcessValue(abs(error));    // errorの値=0からどれくらい離れているかなので0を目標のPIDではerrorをいれればいい    
     pid_hosei= pid.compute();    // 計算
     if(error<0)pid_hosei*=-1;    // もし左に動く必要がある(errorがマイナス)なら計算結果（符号なし）に-1をかける
-    chijiki_hosei[0]=pid_hosei;    // 右旋回をするイメージ（もしpid_hoseiがマイナスならマイナス方向に右旋回＝左旋回になる）
-    chijiki_hosei[1]=-pid_hosei;
-    chijiki_hosei[2]=pid_hosei;
-    chijiki_hosei[3]=-pid_hosei;
+    chijiki_hosei[0]=-pid_hosei;    // 右旋回をするイメージ（もしpid_hoseiがマイナスならマイナス方向に右旋回＝左旋回になる）
+    chijiki_hosei[1]=pid_hosei;
+    chijiki_hosei[2]=-pid_hosei;
+    chijiki_hosei[3]=pid_hosei;
 }
 
 

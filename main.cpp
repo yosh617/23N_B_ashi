@@ -249,11 +249,11 @@ int main(){
                         switch(data[2]){
                         case 'r':
                             goal+=90;
-                            if(goal==360)goal=0;
+                            if(goal==270)goal=-90;
                             break;
                         case 'l':
                             goal-=90;
-                            if(goal==-360)goal=0;
+                            if(goal==-270)goal=90;
                             break;
                         }
                         break;
@@ -387,11 +387,11 @@ void send(char d){
 void function_for_hosei(){
     // sensor_reader();
     float now=CHIJIKI_;    // 実際の値
-    float error=goal-now;    // あとどれくらい動かす必要があるか
+    float error=goal-now;    // あとどれくらい動かす必要があるか＝0°からの誤差(±180°)
     pid.setSetPoint(0);    // 常に0を目指す
     pid.setInputLimits(0,180);    // 符号を外すことで計算を楽に    
     pid.setOutputLimits(0,Olim);    // 最大補正速度はOlim
-    pid.setProcessValue(abs(error));    // errorの値=0からどれくらい離れているかなので0を目標のPIDではerrorをいれればいい    
+    pid.setProcessValue(abs(error));    // errorの値= 0からどれくらい離れているか なので0を目標のPIDではerrorをいれればいい    
     pid_hosei= pid.compute();    // 計算
     if(error<0)pid_hosei*=-1;    // もし左に動く必要がある(errorがマイナス)なら計算結果（符号なし）に-1をかける
     chijiki_hosei[0]=-pid_hosei;    // 右旋回をするイメージ（もしpid_hoseiがマイナスならマイナス方向に右旋回＝左旋回になる）

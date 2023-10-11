@@ -175,7 +175,7 @@ int main(){
                     sig.write(1);
                     airF.write(0);
                     airB.write(0);
-                    airUE.write(1);
+                    airUE.write(0);
                     ue_power.write(0);
                     printf("pause!\n");
                     break;
@@ -184,7 +184,7 @@ int main(){
                     sig.write(0);
                     airF.write(0);
                     airB.write(0);
-                    airUE.write(0);
+                    airUE.write(1); 
                     ue_power.write(1);
                     printf("continue!\n");
                     break;
@@ -386,18 +386,18 @@ void send(char d){
 
 void function_for_hosei(){
     // sensor_reader();
-    float now=CHIJIKI_;
-    float error=goal-now;
-    pid.setSetPoint(0);
-    pid.setInputLimits(-180,0);
-    pid.setOutputLimits(0,Olim);
-    pid.setProcessValue(-abs(now));
-    pid_hosei= pid.compute();
-    if(error>0)pid_hosei*=-1;
-    chijiki_hosei[0]=pid_hosei;
-    chijiki_hosei[1]=-pid_hosei;
-    chijiki_hosei[2]=pid_hosei;
-    chijiki_hosei[3]=-pid_hosei;
+    float now=CHIJIKI_;    // 実際の値
+    float error=goal-now;    // あとどれくらい動かす必要があるか
+    pid.setSetPoint(0);    // 常に0を目指す
+    pid.setInputLimits(0,180);    // 符号を外すことで計算を楽に    
+    pid.setOutputLimits(0,Olim);    // 最大補正速度はOlim
+    pid.setProcessValue(abs(error));    // errorの値=0からどれくらい離れているかなので0を目標のPIDではerrorをいれればいい    
+    pid_hosei= pid.compute();    // 計算
+    if(error<0)pid_hosei*=-1;    // もし左に動く必要がある(errorがマイナス)なら計算結果（符号なし）に-1をかける
+    chijiki_hosei[0]=-pid_hosei;    // 右旋回をするイメージ（もしpid_hoseiがマイナスならマイナス方向に右旋回＝左旋回になる）
+    chijiki_hosei[1]=pid_hosei;
+    chijiki_hosei[2]=-pid_hosei;
+    chijiki_hosei[3]=pid_hosei;
 }
 
 
@@ -495,7 +495,7 @@ void auto_run(void){
                 printf("air change\n");
                 airB.write(1);
                 char buffer;
-                for(int i = 0; i < 10; i++){
+                for(int i = 0; i < 5; i++){ 
                     if(received){
                        received=false;
                        if(buffer=='k' || buffer=='p'){

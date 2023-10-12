@@ -388,6 +388,12 @@ void function_for_hosei(){
     // sensor_reader();
     float now=CHIJIKI_;    // 実際の値
     float error=goal-now;    // あとどれくらい動かす必要があるか＝0°からの誤差(±180°)
+    while (error < -180) {
+        error += 360;
+    }
+    while (error > 180) {
+        error -= 360;
+    }
     pid.setSetPoint(0);    // 常に0を目指す
     pid.setInputLimits(0,180);    // 符号を外すことで計算を楽に    
     pid.setOutputLimits(0,Olim);    // 最大補正速度はOlim
@@ -415,7 +421,7 @@ void sensor_reader(){
     CHIJIKI.setmode(OPERATION_MODE_IMUPLUS);   //魔法
     CHIJIKI.get_angles();
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
-    CHIJIKI_=raw_CHIJIKI_-goal;
+    CHIJIKI_=raw_CHIJIKI_;
     while (CHIJIKI_ < -180) {
         CHIJIKI_ += 360;
     }
@@ -475,6 +481,7 @@ void auto_run(void){
             state=2;
             flag = 0;
             bool finish = false;
+            di='f';
             printf("state:2\n");
             speed=kakuzai_slow_speed;
         }else if(state==2){
@@ -486,6 +493,7 @@ void auto_run(void){
                 printf("----------mae!----------\n");
                 printf("dis0:%f\n",dis[0]);
                 speed=kakuzai_fast_speed;
+                di='f';
             }else if(dis[1] <= WOOD && flag == 1){
                 flag=2;
                 printf("----------go!----------\n");
@@ -508,7 +516,6 @@ void auto_run(void){
                     ThisThread::sleep_for(100ms);
                 }
                 printf("--fin--\n");
-                printf("test\n");
                 airB.write(0);
                 if(finish){
                     printf("finished\n");

@@ -4,6 +4,7 @@
 #include "BNO055.h"
 #include "PIDcontroller.h"
 #include <cstdio>
+#include <string>
 bool debug_log=false;
 const int MD[4]={0x26,0x54,0x56,0x50};  // MDアドレス   右前,左前,右後,左後
 int WOOD=150;   // [mm]
@@ -70,8 +71,8 @@ void auto_run(void);    // 角材
 void debugger(void);    // 確認用関数
 void show(void);    // 変数確認
 void send(char d);  // 動き         direction fbrls
-int F(int speed,int i){return BRK+speed+hosei[i]+chijiki_hosei[i];};    // 前進計算
-int B(int speed,int i){return BRK-speed-hosei[i]-chijiki_hosei[i];};    // 後退計算
+int F(int speed,int i){return BRK+speed+hosei[i]+pid_hosei;};    // 前進計算
+int B(int speed,int i){return BRK-speed-hosei[i]-pid_hosei;};    // 後退計算
 
 // main関数
 int main(){
@@ -152,6 +153,9 @@ int main(){
                             break;
                         case 's':
                             Oslow=O;
+                            break;
+                        case 'l':
+                            Olim=O;
                             break;
                         }
                         break;
@@ -308,6 +312,9 @@ void input(){
                 state=0;
             }
         }
+        if(data[0]=='a' && data[1]=='s'){
+
+        }
     }
 }
 
@@ -323,6 +330,7 @@ void sender(char add,char dat){
 }
 
 void send(char d){
+    if(debug_log)printf("%c\n",d);
     switch(d){
     case 'f':   // 前
         for(int i=0;i<4;i++){
@@ -381,7 +389,7 @@ void send(char d){
         }
         break;
     }
-    wait_us(10000);
+    wait_us(20000);
 }
 
 void function_for_hosei(){
@@ -395,9 +403,9 @@ void function_for_hosei(){
         error -= 360;
     }
     pid.setSetPoint(0);    // 常に0を目指す
-    pid.setInputLimits(0,180);    // 符号を外すことで計算を楽に    
+    pid.setInputLimits(-180,0);    // 符号を外すことで計算を楽に    
     pid.setOutputLimits(0,Olim);    // 最大補正速度はOlim
-    pid.setProcessValue(abs(error));    // errorの値= 0からどれくらい離れているか なので0を目標のPIDではerrorをいれればいい    
+    pid.setProcessValue(-abs(error));    // errorの値= 0からどれくらい離れているか なので0を目標のPIDではerrorをいれればいい    
     pid_hosei= pid.compute();    // 計算
     if(error<0)pid_hosei*=-1;    // もし左に動く必要がある(errorがマイナス)なら計算結果（符号なし）に-1をかける
     chijiki_hosei[0]=-pid_hosei;    // 右旋回をするイメージ（もしpid_hoseiがマイナスならマイナス方向に右旋回＝左旋回になる）
@@ -422,12 +430,13 @@ void sensor_reader(){
     CHIJIKI.get_angles();
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
     CHIJIKI_=raw_CHIJIKI_;
-    while (CHIJIKI_ > 180) {
+    while (CHIJIKI_ > 180) {    // CHIJIKI_<180
         CHIJIKI_ -= 360;
     }
-    while (CHIJIKI_ < -180) {
+    while (CHIJIKI_ < -180) {   // -180<CHIJIKI_
         CHIJIKI_ += 360;
     }
+                            // -180 < CHIJIKI < 180
 }
 
 void debugger(){
@@ -458,10 +467,20 @@ void show(){
     printf("| d                 (d) :%f\n",d);
     printf("| pid_hosei         (X) :%d\n",pid_hosei);
     printf("| goal              (g) :%f\n",goal);
-    printf("| Olim              (o) :%d\n",Olim);
+    printf("| Olim              (ol) :%d\n",Olim);
     printf("| Oslow             (os):%d\n",Oslow);
     printf("| Ofast             (of):%d\n",Ofast);
     printf("| state                 :%d\n",state);
+    float now=CHIJIKI_;    // 実際の値
+    float error=goal-now;    // あとどれくらい動かす必要があるか＝0°からの誤差(±180°)
+    while (error < -180) {
+        error += 360;
+    }
+    while (error > 180) {
+        error -= 360;
+    }
+    printf("| error                 :%f\n",error);
+
     // printf("| ")
     printf("+-----------------------------\n");
 }

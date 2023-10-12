@@ -422,11 +422,11 @@ void sensor_reader(){
     CHIJIKI.get_angles();
     raw_CHIJIKI_=CHIJIKI.euler.yaw;     //取得  0~360
     CHIJIKI_=raw_CHIJIKI_;
-    while (CHIJIKI_ < -180) {
-        CHIJIKI_ += 360;
-    }
     while (CHIJIKI_ > 180) {
         CHIJIKI_ -= 360;
+    }
+    while (CHIJIKI_ < -180) {
+        CHIJIKI_ += 360;
     }
 }
 
